@@ -181,7 +181,7 @@
             </tk:SettingsCard>
 
             <tk:SettingsCard
-                Description="Read the Steam, Epic, GOG, Ubisoft, EA and Battle.net libraries for installed games."
+                Description="Read the Steam, Epic, GOG, Ubisoft, EA, Battle.net, itch.io and Game Jolt libraries for installed games."
                 Header="Game launchers">
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE7FC;" />

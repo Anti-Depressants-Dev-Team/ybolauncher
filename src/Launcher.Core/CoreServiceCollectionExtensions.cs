@@ -49,6 +49,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IGameLibrary, UbisoftLibrary>();
         services.AddSingleton<IGameLibrary, EaLibrary>();
         services.AddSingleton<IGameLibrary, BattleNetLibrary>();
+        services.AddSingleton<IGameLibrary, ItchLibrary>();
+        services.AddSingleton<IGameLibrary, GameJoltLibrary>();
         services.AddSingleton<IAppSource, GameLauncherAppSource>();
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
         services.AddSingleton<ILaunchService, LaunchService>();

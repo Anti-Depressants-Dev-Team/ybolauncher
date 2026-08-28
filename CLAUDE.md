@@ -146,10 +146,10 @@ target so the shortcut's own icon location and index are honoured.
 ### Game launchers
 
 `GameLauncherAppSource` is one `IAppSource` over several `IGameLibrary` implementations:
-Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop) and Battle.net. Each reads
-the launcher's own bookkeeping rather than guessing at folders, and each returns an empty
-list when that launcher is absent — the normal case — so adding another store is a new
-small class and a DI registration, nothing else.
+Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop), Battle.net, itch.io and
+Game Jolt. Each reads the launcher's own bookkeeping rather than guessing at folders, and
+each returns an empty list when that launcher is absent — the normal case — so adding
+another store is a new small class and a DI registration, nothing else.
 
 - **Steam** parses `libraryfolders.vdf` for every library root (games are routinely spread
   across drives) and one `appmanifest_*.acf` per app. `VdfParser` is a small, deliberately
@@ -162,13 +162,26 @@ small class and a DI registration, nothing else.
   engine installs and plugins).
 - **EA** reads the `.mfst` files under `%ProgramData%\Origin\LocalContent` and
   `EA Desktop\LocalContent` and pulls the offer id out of their query string.
+- **itch.io** has no readable index — the app keeps one SQLite database, and taking a
+  SQLite dependency for a single launcher is not worth it. Every install carries its own
+  `.itch\receipt.json.gz` instead (gzipped JSON with the title and classification), so the
+  install folders are walked and the receipts read. itch hosts art packs, soundtracks and
+  books alongside games; those classifications are skipped, as are web games, which run
+  inside the itch app itself and cannot be started from outside it.
+- **Game Jolt** reads the client's own store, `packages.wttf` and `games.wttf` in
+  `%AppData%\game-jolt-client`. Both are JSON despite the extension, and have been written
+  as a keyed map and as a plain array across client versions, so the reader accepts either
+  rather than assuming one. A package is named after its game, not after its build.
 - **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
   launch their executable directly; the other two go through their launcher's protocol.
 
 **Launching** prefers the launcher's protocol (`steam://rungameid/…`,
 `com.epicgames.launcher://…`, `uplay://…`, `origin2://…`) because it is what starts the
 launcher's own overlay, cloud saves and DRM. The install path is still kept on the entry:
-it is where the icon comes from and what makes "open file location" work.
+it is where the icon comes from and what makes "open file location" work. GOG, itch.io and
+Game Jolt have no such protocol worth going through - their games are DRM-free and run
+directly - so for those the executable is the launch target, and an install with no
+executable to find is skipped rather than shown as a tile that opens a folder.
 
 **Deduplication is free.** A game's Start Menu shortcut is a `.url` holding the same
 protocol URI, so `AppIdentity` derives the same merge key from both and they collapse into
@@ -179,8 +192,11 @@ packages and are already found by `PackagedAppSource`; a second source would onl
 duplicates.
 
 No game launcher is installed on the development machine, so this code is covered by
-fixture tests that write a real Steam folder layout to disk
-(`GameLauncherAppSourceTests`) rather than by a live scan.
+fixture tests that write a real folder layout to disk - a Steam library in
+`GameLauncherAppSourceTests`, itch and Game Jolt installs in `IndieLauncherTests` - rather
+than by a live scan. The itch and Game Jolt file names and shapes come from those clients'
+published behaviour, not from a machine here; both readers are deliberately lenient and
+report nothing when what they find does not match.
 
 ## Launching
 
@@ -491,7 +507,7 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IIconService` | `IconService` |
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource`, `GameLauncherAppSource` |
-| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary` |
+| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary`, `ItchLibrary`, `GameJoltLibrary` |
 | `ILaunchService` | `LaunchService` |
 | `IStartupService` | `StartupService` (HKCU Run key) |
 | `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |

@@ -16,10 +16,11 @@ entry per app, filters out the clutter (uninstallers, readme links, dead shortcu
 caches every icon. Newly installed apps appear on their own — a file watcher and the
 package catalog tell it when something changed.
 
-**Your games too.** Steam, Epic, GOG, Ubisoft Connect, EA and Battle.net libraries are
-read from each launcher's own records, so installed games appear alongside everything
-else and start through their launcher — overlay, cloud saves and all. Xbox Game Pass
-titles arrive through the package catalog. Switch the whole thing off in Settings if you
+**Your games too.** Steam, Epic, GOG, Ubisoft Connect, EA, Battle.net, itch.io and Game
+Jolt libraries are read from each launcher's own records, so installed games appear
+alongside everything else and start through their launcher — overlay, cloud saves and all.
+DRM-free stores (GOG, itch.io, Game Jolt) run the game directly. Xbox Game Pass titles
+arrive through the package catalog. Switch the whole thing off in Settings if you
 do not want it.
 
 **Tabs you arrange.** Home always holds every app and can't be deleted. Every other tab is

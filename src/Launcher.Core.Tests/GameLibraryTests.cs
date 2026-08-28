@@ -155,6 +155,8 @@ public sealed class GameLibraryIntegrationTests
             new GogLibrary(),
             new UbisoftLibrary(),
             new BattleNetLibrary(),
+            new ItchLibrary(() => null),
+            new GameJoltLibrary(() => null),
         ];
 
         foreach (IGameLibrary library in libraries)
