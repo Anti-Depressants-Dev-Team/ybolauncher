@@ -12,10 +12,7 @@ using Launcher.Core.Storage;
 
 namespace Launcher.App.ViewModels;
 
-/// <summary>
-/// Backs the Settings page. Only the settings the shell owns today are here; the rest
-/// arrive with the phases that implement them (SPEC.md "Settings page").
-/// </summary>
+/// <summary>Backs the Settings page.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsService _settings;
@@ -23,6 +20,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly StoragePaths _paths;
     private readonly IAppDiscoveryService _discovery;
     private readonly IIconService _icons;
+    private readonly IStartupService _startup;
+    private readonly IHotkeyService _hotkeys;
+    private readonly IDialogService _dialogs;
 
     [ObservableProperty]
     private int _selectedThemeIndex;
@@ -49,39 +49,57 @@ public sealed partial class SettingsViewModel : ObservableObject
     private double _defaultTileScalePercent = 100;
 
     [ObservableProperty]
+    private bool _startWithWindows;
+
+    [ObservableProperty]
+    private bool _startMinimized;
+
+    [ObservableProperty]
+    private bool _minimizeToTray;
+
+    [ObservableProperty]
+    private bool _hideAfterLaunch;
+
+    [ObservableProperty]
+    private bool _hotkeyEnabled;
+
+    [ObservableProperty]
+    private string _hotkeyText = string.Empty;
+
+    [ObservableProperty]
+    private string _hotkeyStatus = string.Empty;
+
+    [ObservableProperty]
+    private string _startupStatus = string.Empty;
+
+    [ObservableProperty]
     private string _iconCacheStatus = string.Empty;
 
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
-    private readonly bool _isInitializing;
+    private bool _isInitializing;
 
     public SettingsViewModel(
         ISettingsService settings,
         IThemeService theme,
         StoragePaths paths,
         IAppDiscoveryService discovery,
-        IIconService icons)
+        IIconService icons,
+        IStartupService startup,
+        IHotkeyService hotkeys,
+        IDialogService dialogs)
     {
         _settings = settings;
         _theme = theme;
         _paths = paths;
         _discovery = discovery;
         _icons = icons;
-
-        // Seed the backing fields directly so the change handlers do not write back the
-        // values we just read.
-        _isInitializing = true;
-        AppSettings current = _settings.Current;
-        _selectedThemeIndex = (int)current.Theme;
-        _selectedBackdropIndex = (int)current.Backdrop;
-        _scanStartMenu = current.ScanStartMenu;
-        _scanPackagedApps = current.ScanPackagedApps;
-        _showFilteredEntries = current.ShowFilteredEntries;
-        _showHiddenEntries = current.ShowHiddenEntries;
-        _defaultViewModeIndex = (int)current.DefaultViewMode;
-        _defaultTileScalePercent = current.DefaultTileScale * 100;
-        _isInitializing = false;
+        _startup = startup;
+        _hotkeys = hotkeys;
+        _dialogs = dialogs;
 
         VersionDescription = BuildVersionDescription();
+
+        ReloadFromSettings();
     }
 
     /// <summary>Folder holding settings.json, apps.json, tabs.json and the icon cache.</summary>
@@ -93,7 +111,43 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string VersionDescription { get; }
 
-    public bool CanRescan => !_discovery.IsScanning;
+    public string AccentDescription { get; } =
+        "The launcher follows the accent colour you have chosen for Windows.";
+
+    /// <summary>Seeds every bound property from the stored settings without writing back.</summary>
+    private void ReloadFromSettings()
+    {
+        AppSettings current = _settings.Current;
+
+        _isInitializing = true;
+        try
+        {
+            SelectedThemeIndex = (int)current.Theme;
+            SelectedBackdropIndex = (int)current.Backdrop;
+            ScanStartMenu = current.ScanStartMenu;
+            ScanPackagedApps = current.ScanPackagedApps;
+            ShowFilteredEntries = current.ShowFilteredEntries;
+            ShowHiddenEntries = current.ShowHiddenEntries;
+            DefaultViewModeIndex = (int)current.DefaultViewMode;
+            DefaultTileScalePercent = current.DefaultTileScale * 100;
+            MinimizeToTray = current.MinimizeToTray;
+            HideAfterLaunch = current.HideAfterLaunch;
+            StartMinimized = current.StartMinimized;
+            HotkeyEnabled = current.HotkeyEnabled;
+            HotkeyText = current.Hotkey.ToString();
+
+            // Read from the registry rather than from settings.json: the user may have
+            // removed the Run entry outside the app, and the toggle should reflect reality.
+            StartWithWindows = _startup.IsEnabled();
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
+
+        UpdateHotkeyStatus();
+        UpdateStartupStatus();
+    }
 
     private static string BuildVersionDescription()
     {
@@ -108,6 +162,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 version.Minor,
                 version.Build);
     }
+
+    // ---- appearance ----
 
     partial void OnSelectedThemeIndexChanged(int value)
     {
@@ -132,6 +188,30 @@ public sealed partial class SettingsViewModel : ObservableObject
         _theme.ApplyBackdrop(backdrop);
         _ = _settings.UpdateAsync(s => s.Backdrop = backdrop);
     }
+
+    partial void OnDefaultViewModeIndexChanged(int value)
+    {
+        // Applies to tabs created from here on; existing tabs keep their own choice.
+        if (!_isInitializing && value >= 0 && Enum.IsDefined((ViewMode)value))
+        {
+            _ = _settings.UpdateAsync(s => s.DefaultViewMode = (ViewMode)value);
+        }
+    }
+
+    partial void OnDefaultTileScalePercentChanged(double value)
+    {
+        if (!_isInitializing)
+        {
+            double scale = Math.Clamp(value / 100, LauncherTab.MinTileScale, LauncherTab.MaxTileScale);
+            _ = _settings.UpdateAsync(s => s.DefaultTileScale = scale);
+        }
+    }
+
+    /// <summary>Opens the Windows colour settings, where the accent actually lives.</summary>
+    [RelayCommand]
+    private static void OpenWindowsColorSettings() => TryOpen("ms-settings:colors");
+
+    // ---- discovery ----
 
     partial void OnScanStartMenuChanged(bool value)
     {
@@ -159,32 +239,142 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnDefaultViewModeIndexChanged(int value)
-    {
-        // Applies to tabs created from here on; existing tabs keep their own choice.
-        if (!_isInitializing && value >= 0 && Enum.IsDefined((ViewMode)value))
-        {
-            _ = _settings.UpdateAsync(s => s.DefaultViewMode = (ViewMode)value);
-        }
-    }
-
-    partial void OnDefaultTileScalePercentChanged(double value)
-    {
-        if (!_isInitializing)
-        {
-            double scale = Math.Clamp(value / 100, LauncherTab.MinTileScale, LauncherTab.MaxTileScale);
-            _ = _settings.UpdateAsync(s => s.DefaultTileScale = scale);
-        }
-    }
-
     partial void OnShowHiddenEntriesChanged(bool value)
     {
-        // The only way back for an app the user hid from a tile's context menu.
         if (!_isInitializing)
         {
             _ = _settings.UpdateAsync(s => s.ShowHiddenEntries = value);
         }
     }
+
+    /// <summary>Lets the user pick hidden apps to bring back.</summary>
+    [RelayCommand]
+    private async Task ManageHiddenAppsAsync()
+    {
+        var hidden = _discovery.Entries.Where(e => e.IsHidden).ToList();
+
+        IReadOnlyList<string> unhide = await _dialogs.ManageHiddenAppsAsync(hidden);
+        if (unhide.Count == 0)
+        {
+            return;
+        }
+
+        var ids = new HashSet<string>(unhide, StringComparer.Ordinal);
+
+        foreach (AppEntry entry in _discovery.Entries.Where(e => ids.Contains(e.Id)))
+        {
+            entry.IsHidden = false;
+        }
+
+        await _discovery.SaveAsync();
+
+        // Nudges every view that listens for a settings change into rebuilding.
+        await _settings.UpdateAsync(_ => { });
+    }
+
+    // ---- startup, tray and hotkey ----
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        if (!_startup.SetEnabled(value, StartMinimized))
+        {
+            StartupStatus = "Windows refused to update the startup entry.";
+            return;
+        }
+
+        UpdateStartupStatus();
+    }
+
+    partial void OnStartMinimizedChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        _ = _settings.UpdateAsync(s => s.StartMinimized = value);
+
+        // The Run entry embeds the switch, so it has to be rewritten when this changes.
+        if (StartWithWindows)
+        {
+            _startup.SetEnabled(true, value);
+        }
+    }
+
+    partial void OnMinimizeToTrayChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.MinimizeToTray = value);
+        }
+    }
+
+    partial void OnHideAfterLaunchChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.HideAfterLaunch = value);
+        }
+    }
+
+    partial void OnHotkeyEnabledChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        _ = _settings.UpdateAsync(s => s.HotkeyEnabled = value);
+
+        _hotkeys.Apply(_settings.Current.Hotkey, value);
+        UpdateHotkeyStatus();
+    }
+
+    [RelayCommand]
+    private async Task ChangeHotkeyAsync()
+    {
+        HotkeyBinding? captured = await _dialogs.CaptureHotkeyAsync(_settings.Current.Hotkey);
+        if (captured is null)
+        {
+            return;
+        }
+
+        await _settings.UpdateAsync(s => s.Hotkey = captured);
+
+        HotkeyText = captured.ToString();
+        _hotkeys.Apply(captured, HotkeyEnabled);
+        UpdateHotkeyStatus();
+    }
+
+    /// <summary>Turns the registration result into something worth reading.</summary>
+    private void UpdateHotkeyStatus() => HotkeyStatus = _hotkeys.Status switch
+    {
+        Services.HotkeyStatus.Active => "Active.",
+        Services.HotkeyStatus.AlreadyInUse => "Another app already uses this combination. Pick a different one.",
+        Services.HotkeyStatus.Invalid => "Add Ctrl, Alt or Shift - a hotkey needs at least one modifier.",
+        Services.HotkeyStatus.Failed => "Windows would not register this combination.",
+        _ => "Turned off.",
+    };
+
+    private void UpdateStartupStatus()
+    {
+        if (!StartWithWindows)
+        {
+            StartupStatus = "The launcher does not start with Windows.";
+            return;
+        }
+
+        StartupStatus = _startup.IsStale()
+            ? "The startup entry points at a different copy of the app. Turn this off and on again to repair it."
+            : "The launcher starts with Windows.";
+    }
+
+    // ---- maintenance ----
 
     /// <summary>Re-runs discovery. User edits survive because entries are matched by id.</summary>
     [RelayCommand]
@@ -195,8 +385,6 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        OnPropertyChanged(nameof(CanRescan));
-
         try
         {
             await _discovery.ScanAsync();
@@ -205,10 +393,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         catch (Exception ex)
         {
             IconCacheStatus = "Rescan failed: " + ex.Message;
-        }
-        finally
-        {
-            OnPropertyChanged(nameof(CanRescan));
         }
     }
 
@@ -227,6 +411,31 @@ public sealed partial class SettingsViewModel : ObservableObject
             removed);
     }
 
+    /// <summary>Restores every preference. Apps, tabs and window geometry are untouched.</summary>
+    [RelayCommand]
+    private async Task ResetToDefaultsAsync()
+    {
+        bool confirmed = await _dialogs.ConfirmAsync(
+            "Reset settings?",
+            "Every preference goes back to its default. Your tabs, your apps and the window position are left alone.",
+            "Reset settings");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await _settings.UpdateAsync(s => s.ResetToDefaults());
+
+        AppSettings current = _settings.Current;
+        _theme.ApplyTheme(current.Theme);
+        _theme.ApplyBackdrop(current.Backdrop);
+        _hotkeys.Apply(current.Hotkey, current.HotkeyEnabled);
+
+        ReloadFromSettings();
+        IconCacheStatus = "Settings reset.";
+    }
+
     /// <summary>Opens the state folder in File Explorer.</summary>
     [RelayCommand]
     private void OpenStorageFolder()
@@ -234,16 +443,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             Directory.CreateDirectory(_paths.Root);
+        }
+        catch (Exception)
+        {
+            // Explorer will report the problem better than we can.
+        }
+
+        TryOpen(_paths.Root);
+    }
+
+    private static void TryOpen(string target)
+    {
+        try
+        {
             using Process? _ = Process.Start(new ProcessStartInfo
             {
-                FileName = _paths.Root,
+                FileName = target,
                 UseShellExecute = true,
             });
         }
         catch (Exception ex)
         {
-            // Opening Explorer is a convenience; never let it take the app down.
-            Debug.WriteLine($"Could not open {_paths.Root}: {ex}");
+            // Opening a shell target is a convenience; never let it take the app down.
+            Debug.WriteLine($"Could not open {target}: {ex}");
         }
     }
 }

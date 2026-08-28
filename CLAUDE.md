@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 6 (Polish) complete.** See "Phase status" at the bottom.
+**Current state: Phase 7 (System integration) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -254,6 +254,34 @@ Esc drive the results; Ctrl+Tab and Ctrl+Shift+Tab cycle tabs with wraparound; C
 to a tab, where 9 means *last* rather than ninth, matching browsers; Enter launches and
 Delete removes from a custom tab.
 
+## System integration
+
+**Global hotkey.** `RegisterHotKey` posts `WM_HOTKEY` to the window's message queue, and
+WinUIEx's `WindowMessageMonitor` subclasses the HWND so it can be observed — WinUI exposes
+no WndProc of its own. This works fine unpackaged; the MSIX fallback SPEC.md allows was not
+needed. `MOD_NOREPEAT` is always set, or holding the combination fires continuously.
+Conflict detection is the return value: `ERROR_HOTKEY_ALREADY_REGISTERED` (1409) becomes
+`HotkeyStatus.AlreadyInUse`, which the Settings page shows in words. A binding needs at
+least one modifier — registering a bare key would swallow it system-wide.
+
+**Off by default.** A global hotkey takes a combination away from every other app, so it is
+opt-in rather than something that happens on first run.
+
+**Tray icon** lives in the window's XAML tree so its context menu inherits a `XamlRoot`.
+That means a minimized start still has to `Activate()` before hiding, because WinUI does
+not build a window's content until it is activated.
+
+**Start with Windows** writes to `HKCU\...\Run` — per-user, so no elevation. The value is
+always quoted (the path routinely contains spaces) and carries `--minimized` when the user
+wants a tray-only start. `IsStale()` reports a Run entry pointing at a different copy of
+the app, which happens when the folder is moved; re-enabling repairs it. The toggle reads
+the registry rather than settings.json, so it reflects reality if the entry is removed
+outside the app.
+
+**Exit** is only on the tray menu once close-to-tray is on. `WindowService.RequestExit`
+sets a flag the `AppWindow.Closing` handler checks, and the tray icon is disposed first or
+it lingers in the notification area as a ghost until hovered.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -352,7 +380,7 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | 4. Tabs | **Done** — create/rename/reorder/delete, drag-and-drop, Explorer drop |
 | 5. Search | **Done** — fzf-style matcher, ranked results, full keyboard flow |
 | 6. Polish | **Done** — view modes, sizing, sorting, motion, keyboard, accessibility |
-| 7. System integration | Not started |
+| 7. System integration | **Done** — tray, global hotkey, run at startup, full settings |
 | 8. Hardening | Not started |
 
 ### Registered services
@@ -367,8 +395,11 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
 | `ILaunchService` | `LaunchService` |
+| `IStartupService` | `StartupService` (HKCU Run key) |
 | `ITabService` | `TabService` |
 | `ISearchService` | `SearchService` (`FuzzyMatcher` is static) |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |
 | `IDialogService` | `DialogService` (app layer — needs `XamlRoot` and the HWND) |
+| `IWindowService` | `WindowService` (show/hide/exit, app layer) |
+| `IHotkeyService` | `HotkeyService` (app layer — needs the HWND) |
 | `StoragePaths`, `ShellLinkResolver`, `JunkFilter`, `UserEntryFactory` | concrete singletons |

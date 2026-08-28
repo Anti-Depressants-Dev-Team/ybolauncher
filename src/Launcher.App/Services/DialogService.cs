@@ -1,10 +1,13 @@
 using System.Globalization;
 using Launcher.Core.Models;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.UI.Core;
+using VirtualKey = Windows.System.VirtualKey;
 
 namespace Launcher.App.Services;
 
@@ -302,6 +305,127 @@ public sealed class DialogService : IDialogService, IDisposable
         string? chosenHex = (colorBox.SelectedItem as ComboBoxItem)?.Tag as string;
 
         return new TabEdit(chosenName, NullIfBlank(glyphBox.Text), chosenHex);
+    }
+
+    public async Task<HotkeyBinding?> CaptureHotkeyAsync(HotkeyBinding current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+
+        HotkeyBinding captured = current.Clone();
+
+        var preview = new TextBlock
+        {
+            Text = captured.ToString(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"],
+        };
+
+        var hint = new TextBlock
+        {
+            Text = "Hold Ctrl, Alt or Shift and press a key. Escape closes without changing anything.",
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        };
+
+        var warning = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"],
+            Visibility = Visibility.Collapsed,
+        };
+
+        var panel = new StackPanel { Spacing = 12, MinWidth = 380, Padding = new Thickness(0, 12, 0, 12) };
+        panel.Children.Add(preview);
+        panel.Children.Add(hint);
+        panel.Children.Add(warning);
+
+        ContentDialog dialog = CreateDialog("Set the global hotkey", panel, "Use this");
+
+        // PreviewKeyDown, not KeyDown: the dialog and its buttons handle Enter, Space and
+        // the arrow keys themselves, and all of those are legitimate hotkey characters.
+        dialog.PreviewKeyDown += (_, args) =>
+        {
+            var key = (uint)args.Key;
+
+            if (HotkeyBinding.IsModifierKey(key))
+            {
+                // The user is still holding modifiers and has not chosen a key yet.
+                return;
+            }
+
+            if (args.Key == VirtualKey.Escape)
+            {
+                return;
+            }
+
+            args.Handled = true;
+
+            captured = new HotkeyBinding
+            {
+                Alt = IsKeyDown(VirtualKey.Menu),
+                Control = IsKeyDown(VirtualKey.Control),
+                Shift = IsKeyDown(VirtualKey.Shift),
+                Windows = IsKeyDown(VirtualKey.LeftWindows) || IsKeyDown(VirtualKey.RightWindows),
+                Key = key,
+            };
+
+            preview.Text = captured.ToString();
+
+            warning.Text = "A hotkey needs at least one of Ctrl, Alt or Shift.";
+            warning.Visibility = captured.IsValid ? Visibility.Collapsed : Visibility.Visible;
+        };
+
+        if (await ShowAsync(dialog) != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+
+        return captured.IsValid ? captured : null;
+    }
+
+    private static bool IsKeyDown(VirtualKey key) =>
+        InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
+
+    public async Task<IReadOnlyList<string>> ManageHiddenAppsAsync(IReadOnlyList<AppEntry> hidden)
+    {
+        ArgumentNullException.ThrowIfNull(hidden);
+
+        if (hidden.Count == 0)
+        {
+            await ConfirmAsync("Hidden apps", "Nothing is hidden right now.", acceptButtonText: "OK");
+            return [];
+        }
+
+        var boxes = new List<(CheckBox Box, string Id)>(hidden.Count);
+        var list = new StackPanel { Spacing = 4 };
+
+        foreach (AppEntry entry in hidden.OrderBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var box = new CheckBox { Content = entry.DisplayName };
+            boxes.Add((box, entry.Id));
+            list.Children.Add(box);
+        }
+
+        var body = new StackPanel { Spacing = 8, MinWidth = 380 };
+        body.Children.Add(new TextBlock
+        {
+            Text = "Tick the apps you want back on Home.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(new ScrollViewer { Content = list, MaxHeight = 320 });
+
+        ContentDialog dialog = CreateDialog("Hidden apps", body, "Show selected");
+
+        if (await ShowAsync(dialog) != ContentDialogResult.Primary)
+        {
+            return [];
+        }
+
+        return [.. boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Id)];
     }
 
     public async Task<bool> ConfirmAsync(string title, string message, string acceptButtonText)

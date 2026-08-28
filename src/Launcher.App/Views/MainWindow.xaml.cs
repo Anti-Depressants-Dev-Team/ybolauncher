@@ -37,19 +37,38 @@ public sealed partial class MainWindow : WindowEx
     private readonly IThemeService _theme;
     private readonly DispatcherQueueTimer _placementSaveTimer;
 
+    private readonly IWindowService _windows;
+    private readonly IHotkeyService _hotkeys;
+
     public MainWindow(
         ShellViewModel viewModel,
         LibraryViewModel library,
         ISettingsService settings,
         IThemeService theme,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        IWindowService windows,
+        IHotkeyService hotkeys)
     {
         ViewModel = viewModel;
         Library = library;
         _settings = settings;
         _theme = theme;
+        _windows = windows;
+        _hotkeys = hotkeys;
 
         InitializeComponent();
+
+        // Same reason as DialogService: these are resolved by view models built while this
+        // window is still under construction, so they take the window through Attach.
+        _windows.Attach(this);
+        _hotkeys.Attach(this);
+        _hotkeys.Pressed += (_, _) => _windows.Toggle();
+
+        SetWindowIcon();
+
+        // The close button hides to the tray unless the user turned that off, or Exit was
+        // chosen from the tray menu.
+        AppWindow.Closing += OnAppWindowClosing;
 
         // Handed the window here rather than through the container: DialogService is
         // resolved by view models that are themselves built while this window is still
@@ -194,6 +213,53 @@ public sealed partial class MainWindow : WindowEx
     private void FocusSearchBox()
     {
         TitleBarSearchBox.Focus(FocusState.Programmatic);
+    }
+
+    // ---- tray and window lifetime ----
+
+    private void SetWindowIcon()
+    {
+        try
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+
+            if (File.Exists(path))
+            {
+                AppWindow.SetIcon(path);
+            }
+        }
+        catch (Exception)
+        {
+            // A missing icon is cosmetic; the default one will do.
+        }
+    }
+
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_settings.Current.MinimizeToTray && !_windows.IsExiting)
+        {
+            args.Cancel = true;
+            _windows.Hide();
+        }
+    }
+
+    private void OnTrayShow(object sender, RoutedEventArgs e) => _windows.ShowAndActivate();
+
+    private void OnTrayRescan(object sender, RoutedEventArgs e) =>
+        _ = Library.RescanCommand.ExecuteAsync(null);
+
+    private void OnTraySettings(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsSettingsOpen = true;
+        _windows.ShowAndActivate();
+    }
+
+    private void OnTrayExit(object sender, RoutedEventArgs e)
+    {
+        // Dispose first: the tray icon outlives the window otherwise and leaves a ghost
+        // in the notification area until the user hovers it.
+        TrayIcon.Dispose();
+        _windows.RequestExit();
     }
 
     // ---- tab keyboard navigation ----

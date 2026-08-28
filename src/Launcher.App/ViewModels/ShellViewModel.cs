@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Services;
 using Launcher.Core;
 using Microsoft.UI.Xaml;
 
@@ -11,6 +12,10 @@ namespace Launcher.App.ViewModels;
 /// </summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
+    private readonly IWindowService _windows;
+
+    public ShellViewModel(IWindowService windows) => _windows = windows;
+
     [ObservableProperty]
     private string _title = AppInfo.ProductName;
 
@@ -42,6 +47,10 @@ public sealed partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(TabsVisibility));
         OnPropertyChanged(nameof(SettingsVisibility));
     }
+
+    /// <summary>Left-clicking the tray icon summons or dismisses the window.</summary>
+    [RelayCommand]
+    private void ToggleWindow() => _windows.Toggle();
 
     [RelayCommand]
     private void OpenSettings() => IsSettingsOpen = true;

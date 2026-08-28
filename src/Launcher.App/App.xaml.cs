@@ -41,12 +41,39 @@ public partial class App : Application
         await settings.LoadAsync();
 
         _window = Services.GetRequiredService<MainWindow>();
+
+        // Activate before hiding even for a minimized start: WinUI does not build the
+        // window's content until it is activated, and the tray icon lives in that content.
         _window.Activate();
+
+        if (ShouldStartMinimized(settings.Current))
+        {
+            Services.GetRequiredService<IWindowService>().Hide();
+        }
+
+        Services.GetRequiredService<IHotkeyService>()
+            .Apply(settings.Current.Hotkey, settings.Current.HotkeyEnabled);
 
         // Tabs and discovery load after the window is up, so a first-run scan never
         // blocks the shell from appearing.
         var library = Services.GetRequiredService<LibraryViewModel>();
         await library.InitializeAsync();
+    }
+
+    /// <summary>
+    /// True when this launch should go straight to the tray - either the setting says so,
+    /// or Windows started us from the Run key with the minimized switch.
+    /// </summary>
+    private static bool ShouldStartMinimized(Launcher.Core.Models.AppSettings settings)
+    {
+        if (settings.StartMinimized)
+        {
+            return true;
+        }
+
+        return Environment.GetCommandLineArgs()
+            .Skip(1)
+            .Any(arg => string.Equals(arg, StartupService.MinimizedSwitch, StringComparison.OrdinalIgnoreCase));
     }
 
     private static ServiceProvider ConfigureServices()
@@ -57,6 +84,8 @@ public partial class App : Application
 
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IWindowService, WindowService>();
+        services.AddSingleton<IHotkeyService, HotkeyService>();
 
         services.AddSingleton<MainWindow>();
         services.AddTransient<SettingsViewModel>();

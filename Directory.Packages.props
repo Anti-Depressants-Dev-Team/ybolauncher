@@ -16,6 +16,7 @@
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260804001" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
     <PackageVersion Include="WinUIEx" Version="2.9.3" />
+    <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.3.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
   </ItemGroup>

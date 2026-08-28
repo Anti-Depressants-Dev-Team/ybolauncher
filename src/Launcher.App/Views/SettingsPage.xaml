@@ -12,11 +12,7 @@
 
             <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Settings" />
 
-            <TextBlock
-                Margin="0,0,0,12"
-                Style="{StaticResource PageSubtitleTextStyle}"
-                Text="Discovery sources, hotkeys, tray behaviour and the rest arrive with their phases." />
-
+            <!--  Appearance  -->
             <TextBlock
                 Margin="0,8,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -28,9 +24,7 @@
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE790;" />
                 </tk:SettingsCard.HeaderIcon>
-
                 <ComboBox
-                    x:Name="ThemeCombo"
                     MinWidth="160"
                     AutomationProperties.Name="App theme"
                     SelectedIndex="{x:Bind ViewModel.SelectedThemeIndex, Mode=TwoWay}">
@@ -46,9 +40,7 @@
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE81E;" />
                 </tk:SettingsCard.HeaderIcon>
-
                 <ComboBox
-                    x:Name="BackdropCombo"
                     MinWidth="160"
                     AutomationProperties.Name="Window backdrop"
                     SelectedIndex="{x:Bind ViewModel.SelectedBackdropIndex, Mode=TwoWay}">
@@ -57,13 +49,22 @@
                 </ComboBox>
             </tk:SettingsCard>
 
+            <tk:SettingsCard Description="{x:Bind ViewModel.AccentDescription}" Header="Accent colour">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE790;" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button
+                    AutomationProperties.Name="Open Windows colour settings"
+                    Command="{x:Bind ViewModel.OpenWindowsColorSettingsCommand}"
+                    Content="Open Windows settings" />
+            </tk:SettingsCard>
+
             <tk:SettingsExpander
                 Description="Applies to tabs you create from now on. Each tab keeps its own view, which you can change from the view button next to the tab strip."
                 Header="Default view for new tabs">
                 <tk:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xE8A9;" />
                 </tk:SettingsExpander.HeaderIcon>
-
                 <ComboBox
                     MinWidth="160"
                     AutomationProperties.Name="Default view mode"
@@ -72,7 +73,6 @@
                     <ComboBoxItem Content="Medium grid" />
                     <ComboBoxItem Content="Compact list" />
                 </ComboBox>
-
                 <tk:SettingsExpander.Items>
                     <tk:SettingsCard Header="Default tile size">
                         <Slider
@@ -86,6 +86,73 @@
                 </tk:SettingsExpander.Items>
             </tk:SettingsExpander>
 
+            <!--  Startup and window behaviour  -->
+            <TextBlock
+                Margin="0,16,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Startup and window" />
+
+            <tk:SettingsExpander Description="{x:Bind ViewModel.StartupStatus, Mode=OneWay}" Header="Start with Windows">
+                <tk:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE7E8;" />
+                </tk:SettingsExpander.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Start with Windows"
+                    IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}" />
+                <tk:SettingsExpander.Items>
+                    <tk:SettingsCard
+                        Description="Go straight to the notification area without showing the window."
+                        Header="Start hidden in the tray">
+                        <ToggleSwitch
+                            AutomationProperties.Name="Start hidden in the tray"
+                            IsOn="{x:Bind ViewModel.StartMinimized, Mode=TwoWay}" />
+                    </tk:SettingsCard>
+                </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
+
+            <tk:SettingsCard
+                Description="The close button hides the window instead of quitting. Use Exit on the tray icon to quit."
+                Header="Close to the notification area">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8BB;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Close to the notification area"
+                    IsOn="{x:Bind ViewModel.MinimizeToTray, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="Get out of the way once you have started something."
+                Header="Hide after launching an app">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7E6;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Hide after launching an app"
+                    IsOn="{x:Bind ViewModel.HideAfterLaunch, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsExpander Description="{x:Bind ViewModel.HotkeyStatus, Mode=OneWay}" Header="Global hotkey">
+                <tk:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE765;" />
+                </tk:SettingsExpander.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Global hotkey"
+                    IsOn="{x:Bind ViewModel.HotkeyEnabled, Mode=TwoWay}" />
+                <tk:SettingsExpander.Items>
+                    <tk:SettingsCard
+                        Description="Summons the launcher from anywhere, and hides it again."
+                        Header="Key combination">
+                        <Button
+                            MinWidth="160"
+                            AutomationProperties.Name="Change the global hotkey"
+                            Command="{x:Bind ViewModel.ChangeHotkeyCommand}"
+                            Content="{x:Bind ViewModel.HotkeyText, Mode=OneWay}" />
+                    </tk:SettingsCard>
+                </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
+
+            <!--  Discovery  -->
             <TextBlock
                 Margin="0,16,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -124,16 +191,26 @@
                     IsOn="{x:Bind ViewModel.ShowFilteredEntries, Mode=TwoWay}" />
             </tk:SettingsCard>
 
-            <tk:SettingsCard
-                Description="Bring back apps you hid from a tile's context menu, so you can unhide them."
-                Header="Show hidden entries">
-                <tk:SettingsCard.HeaderIcon>
+            <tk:SettingsExpander
+                Description="Bring back apps you hid from a tile's context menu."
+                Header="Hidden apps">
+                <tk:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xED1A;" />
-                </tk:SettingsCard.HeaderIcon>
-                <ToggleSwitch
-                    AutomationProperties.Name="Show hidden entries"
-                    IsOn="{x:Bind ViewModel.ShowHiddenEntries, Mode=TwoWay}" />
-            </tk:SettingsCard>
+                </tk:SettingsExpander.HeaderIcon>
+                <Button
+                    AutomationProperties.Name="Manage hidden apps"
+                    Command="{x:Bind ViewModel.ManageHiddenAppsCommand}"
+                    Content="Manage" />
+                <tk:SettingsExpander.Items>
+                    <tk:SettingsCard
+                        Description="Shows every hidden app inline, where its context menu can unhide it."
+                        Header="Show hidden entries on Home">
+                        <ToggleSwitch
+                            AutomationProperties.Name="Show hidden entries"
+                            IsOn="{x:Bind ViewModel.ShowHiddenEntries, Mode=TwoWay}" />
+                    </tk:SettingsCard>
+                </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
 
             <tk:SettingsCard
                 Description="{x:Bind ViewModel.IconCacheStatus, Mode=OneWay}"
@@ -154,6 +231,7 @@
                 </StackPanel>
             </tk:SettingsCard>
 
+            <!--  Storage  -->
             <TextBlock
                 Margin="0,16,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -165,16 +243,12 @@
                 <tk:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xE8B7;" />
                 </tk:SettingsExpander.HeaderIcon>
-
                 <Button
                     AutomationProperties.Name="Open the storage folder"
                     Command="{x:Bind ViewModel.OpenStorageFolderCommand}"
                     Content="Open folder" />
-
                 <tk:SettingsExpander.Items>
-                    <tk:SettingsCard
-                        HorizontalContentAlignment="Left"
-                        ContentAlignment="Left">
+                    <tk:SettingsCard ContentAlignment="Left" HorizontalContentAlignment="Left">
                         <TextBlock
                             IsTextSelectionEnabled="True"
                             Style="{StaticResource CaptionTextBlockStyle}"
@@ -184,17 +258,28 @@
                 </tk:SettingsExpander.Items>
             </tk:SettingsExpander>
 
+            <!--  About  -->
             <TextBlock
                 Margin="0,16,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="About" />
 
-            <tk:SettingsCard
-                Description="{x:Bind ViewModel.VersionDescription}"
-                Header="YBO Launcher">
+            <tk:SettingsCard Description="{x:Bind ViewModel.VersionDescription}" Header="YBO Launcher">
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE946;" />
                 </tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="Puts every preference back to its default. Your tabs, your apps and the window position are left alone."
+                Header="Reset settings">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE777;" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button
+                    AutomationProperties.Name="Reset settings to defaults"
+                    Command="{x:Bind ViewModel.ResetToDefaultsCommand}"
+                    Content="Reset" />
             </tk:SettingsCard>
 
         </StackPanel>

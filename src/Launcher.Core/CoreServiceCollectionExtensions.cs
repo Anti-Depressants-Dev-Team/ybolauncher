@@ -31,6 +31,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton(_ => StoragePaths.CreateDefault());
         services.AddSingleton<IStorageService, JsonStorageService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IStartupService, StartupService>();
 
         services.AddSingleton<IIconService, IconService>();
         services.AddSingleton<ShellLinkResolver>();

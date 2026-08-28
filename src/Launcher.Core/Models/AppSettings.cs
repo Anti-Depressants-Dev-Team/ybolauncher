@@ -6,10 +6,8 @@ namespace Launcher.Core.Models;
 /// <summary>
 /// Everything persisted to <c>settings.json</c>.
 /// <para>
-/// Only the settings the shell actually consumes today are present. Discovery-source
-/// toggles, hotkey binding and tray behaviour arrive with the phases that implement them
-/// (see SPEC.md) - each addition is a plain new property with a default, which the
-/// migration machinery handles without a version bump.
+/// New settings are plain new properties with a default; the migration machinery handles
+/// them appearing in an older file without needing a schema bump.
 /// </para>
 /// </summary>
 [SchemaVersion(1)]
@@ -56,6 +54,52 @@ public sealed class AppSettings : IVersionedDocument
     /// <summary>Tile size multiplier a newly created tab starts with.</summary>
     public double DefaultTileScale { get; set; } = 1.0;
 
+    /// <summary>System-wide hotkey that summons and hides the launcher.</summary>
+    public HotkeyBinding Hotkey { get; set; } = HotkeyBinding.CreateDefault();
+
+    /// <summary>
+    /// Off by default. A global hotkey takes a key combination away from every other app,
+    /// so it is opt-in rather than something that happens on first run.
+    /// </summary>
+    public bool HotkeyEnabled { get; set; }
+
+    /// <summary>Closing the window hides it to the tray instead of exiting.</summary>
+    public bool MinimizeToTray { get; set; } = true;
+
+    /// <summary>Hide the launcher once an app has been started from it.</summary>
+    public bool HideAfterLaunch { get; set; }
+
+    /// <summary>Start into the tray without showing the window. Used with "start with Windows".</summary>
+    public bool StartMinimized { get; set; }
+
+    /// <summary>
+    /// Restores every preference to its default, in place.
+    /// <para>
+    /// Window geometry and the last active tab are deliberately kept: they are restored
+    /// state rather than preferences, and having the window jump across the screen is not
+    /// what "reset settings" should mean.
+    /// </para>
+    /// </summary>
+    public void ResetToDefaults()
+    {
+        var defaults = new AppSettings();
+
+        Theme = defaults.Theme;
+        Backdrop = defaults.Backdrop;
+        ScanStartMenu = defaults.ScanStartMenu;
+        ScanPackagedApps = defaults.ScanPackagedApps;
+        ShowFilteredEntries = defaults.ShowFilteredEntries;
+        ShowHiddenEntries = defaults.ShowHiddenEntries;
+        SearchCurrentTabOnly = defaults.SearchCurrentTabOnly;
+        DefaultViewMode = defaults.DefaultViewMode;
+        DefaultTileScale = defaults.DefaultTileScale;
+        Hotkey = defaults.Hotkey;
+        HotkeyEnabled = defaults.HotkeyEnabled;
+        MinimizeToTray = defaults.MinimizeToTray;
+        HideAfterLaunch = defaults.HideAfterLaunch;
+        StartMinimized = defaults.StartMinimized;
+    }
+
     /// <summary>Creates an independent copy, used to diff or roll back pending edits.</summary>
     public AppSettings Clone() => new()
     {
@@ -70,6 +114,11 @@ public sealed class AppSettings : IVersionedDocument
         SearchCurrentTabOnly = SearchCurrentTabOnly,
         DefaultViewMode = DefaultViewMode,
         DefaultTileScale = DefaultTileScale,
+        Hotkey = Hotkey.Clone(),
+        HotkeyEnabled = HotkeyEnabled,
+        MinimizeToTray = MinimizeToTray,
+        HideAfterLaunch = HideAfterLaunch,
+        StartMinimized = StartMinimized,
         Window = Window.Clone(),
     };
 }

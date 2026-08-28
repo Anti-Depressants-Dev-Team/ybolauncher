@@ -40,6 +40,17 @@ public interface IDialogService
     /// Creates or edits a tab's name, icon and accent colour. Returns null when cancelled.
     /// </summary>
     Task<TabEdit?> EditTabAsync(string title, string name, string? glyph, string? accentColorHex);
+
+    /// <summary>
+    /// Captures a key combination for the global hotkey. Returns null when cancelled.
+    /// </summary>
+    Task<HotkeyBinding?> CaptureHotkeyAsync(HotkeyBinding current);
+
+    /// <summary>
+    /// Lets the user pick hidden apps to show again. Returns the ids to unhide, empty when
+    /// nothing was selected or the dialog was cancelled.
+    /// </summary>
+    Task<IReadOnlyList<string>> ManageHiddenAppsAsync(IReadOnlyList<AppEntry> hidden);
 }
 
 /// <summary>Result of the tab editor.</summary>

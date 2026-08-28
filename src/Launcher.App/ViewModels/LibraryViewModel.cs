@@ -37,6 +37,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
     private readonly ISearchService _search;
+    private readonly IWindowService _windows;
     private readonly UserEntryFactory _userEntries;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _saveTimer;
@@ -70,7 +71,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         ISettingsService settings,
         IDialogService dialogs,
         UserEntryFactory userEntries,
-        ISearchService search)
+        ISearchService search,
+        IWindowService windows)
     {
         _discovery = discovery;
         _tabs = tabs;
@@ -80,6 +82,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         _dialogs = dialogs;
         _userEntries = userEntries;
         _search = search;
+        _windows = windows;
 
         _searchCurrentTabOnly = settings.Current.SearchCurrentTabOnly;
 
@@ -757,6 +760,12 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         if (result.Succeeded)
         {
             QueueSave();
+
+            if (_settings.Current.HideAfterLaunch)
+            {
+                _windows.Hide();
+            }
+
             return;
         }
 
