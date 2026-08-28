@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PUBLISH_DIR: src/Launcher.App/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish
+
 jobs:
   release:
     runs-on: windows-latest
@@ -25,7 +28,7 @@ jobs:
         shell: pwsh
         run: |
           # A tag gives the release its version; a manual run is stamped with the commit
-          # and produces a downloadable build rather than a release.
+          # and produces downloadable builds rather than a release.
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $version = $env:GITHUB_REF_NAME -replace '^v', ''
             $assemblyVersion = $version -replace '[-+].*$', ''
@@ -40,6 +43,7 @@ jobs:
           "assemblyVersion=$assemblyVersion" >> $env:GITHUB_OUTPUT
           "isRelease=$isRelease" >> $env:GITHUB_OUTPUT
           "name=YboLauncher-$version-win-x64" >> $env:GITHUB_OUTPUT
+          "setup=YboLauncher-$version-setup" >> $env:GITHUB_OUTPUT
 
       - name: Test
         run: dotnet test src/Launcher.Core.Tests/Launcher.Core.Tests.csproj --configuration Release
@@ -53,27 +57,87 @@ jobs:
           # dotnet publish has dropped the app's .pri before, which leaves a build that
           # dies on its first XAML load. The build output runs fine, so only a check on
           # the published copy catches it.
-          $publish = 'src/Launcher.App/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish'
-
           foreach ($file in 'YboLauncher.exe', 'YboLauncher.pri', 'Microsoft.WindowsAppRuntime.Bootstrap.dll') {
-            if (-not (Test-Path (Join-Path $publish $file))) {
+            if (-not (Test-Path (Join-Path $env:PUBLISH_DIR $file))) {
               throw "Missing $file in the publish output."
             }
           }
 
           Write-Host 'Publish output looks complete.'
 
-      - name: Package
+      - name: Package the zip
+        shell: pwsh
+        run: Compress-Archive -Path "$env:PUBLISH_DIR/*" -DestinationPath "${{ steps.version.outputs.name }}.zip"
+
+      - name: Find Inno Setup
+        id: inno
         shell: pwsh
         run: |
-          $publish = 'src/Launcher.App/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish'
-          Compress-Archive -Path "$publish/*" -DestinationPath "${{ steps.version.outputs.name }}.zip"
+          # Inno Setup ships on the Windows runner image, but installing it when it is
+          # missing keeps this working if that ever changes. A per-user install lands in
+          # LocalAppData rather than Program Files, so all three are checked.
+          function Find-Iscc {
+            $roots = ${env:ProgramFiles(x86)}, $env:ProgramFiles, "$env:LOCALAPPDATA\Programs"
 
-      - name: Upload the build
+            foreach ($root in $roots) {
+              $candidate = Join-Path $root 'Inno Setup 6\ISCC.exe'
+
+              if ($root -and (Test-Path $candidate)) {
+                return $candidate
+              }
+            }
+
+            return $null
+          }
+
+          $iscc = Find-Iscc
+
+          if (-not $iscc) {
+            Write-Host 'Inno Setup is not on this runner; installing it.'
+            choco install innosetup --no-progress -y
+            $iscc = Find-Iscc
+
+            if (-not $iscc) {
+              throw 'Inno Setup is still not installed after trying to install it.'
+            }
+          }
+
+          Write-Host "Using $iscc"
+          "iscc=$iscc" >> $env:GITHUB_OUTPUT
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          & '${{ steps.inno.outputs.iscc }}' `
+            /DAppVersion=${{ steps.version.outputs.version }} `
+            "/DPublishDir=$(Resolve-Path $env:PUBLISH_DIR)" `
+            /DOutputDir=$(Join-Path $PWD 'installer/output') `
+            installer/YboLauncher.iss
+
+          $setup = "installer/output/${{ steps.version.outputs.setup }}.exe"
+
+          if (-not (Test-Path $setup)) {
+            throw "The installer was not produced at $setup."
+          }
+
+          # A setup that somehow carried none of the payload would still be a valid exe,
+          # so check it is the size a self-contained app implies.
+          $size = (Get-Item $setup).Length / 1MB
+
+          if ($size -lt 40) {
+            throw ("The installer is only {0:N1} MB, which is too small to hold the app." -f $size)
+          }
+
+          Copy-Item $setup "${{ steps.version.outputs.setup }}.exe"
+          Write-Host ("Installer built: {0:N1} MB" -f $size)
+
+      - name: Upload the builds
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.name }}
-          path: ${{ steps.version.outputs.name }}.zip
+          path: |
+            ${{ steps.version.outputs.name }}.zip
+            ${{ steps.version.outputs.setup }}.exe
 
       - name: Create the release
         if: steps.version.outputs.isRelease == 'true'
@@ -83,15 +147,25 @@ jobs:
         run: |
           # Single-quoted here-string: nothing in the notes is expanded or escaped.
           $notes = @'
-          Unzip anywhere and run `YboLauncher.exe`. No installer and no prerequisites - the
-          .NET runtime and the Windows App SDK travel with it.
+          ### Which download?
+
+          - **`YboLauncher-VERSION-setup.exe`** - installer. Installs for the current user
+            only, so there is no administrator prompt, and it adds a Start Menu shortcut
+            and an entry in Apps & features for removing it later.
+          - **`YboLauncher-VERSION-win-x64.zip`** - the same app as a plain folder. Unzip
+            anywhere and run `YboLauncher.exe`.
+
+          Either way there is nothing else to install: the .NET runtime and the Windows App
+          SDK travel with the app.
 
           Requires Windows 10 1809 (build 17763) or newer, 64-bit.
           '@
 
-          $notes | Out-File -FilePath release-notes.md -Encoding utf8
+          $notes.Replace('VERSION', '${{ steps.version.outputs.version }}') |
+            Out-File -FilePath release-notes.md -Encoding utf8
 
           gh release create $env:GITHUB_REF_NAME `
+            "${{ steps.version.outputs.setup }}.exe" `
             "${{ steps.version.outputs.name }}.zip" `
             --title "YBO Launcher ${{ steps.version.outputs.version }}" `
             --notes-file release-notes.md `

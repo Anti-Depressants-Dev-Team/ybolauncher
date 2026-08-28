@@ -421,13 +421,34 @@ both taking the SDK version from `global.json` rather than repeating it:
 - **`ci.yml`** builds the solution and runs the tests on every push and pull request to
   `main`.
 - **`release.yml`** runs on a `v*` tag: test, publish `-c Release -r win-x64`, verify the
-  publish output, zip it and attach it to a GitHub release. Run by hand instead and it
-  produces the same zip as a build artifact and creates no release, which is the way to
-  check a packaging change without cutting a version.
+  publish output, then produce both downloads - a plain zip and a setup .exe - and attach
+  them to a GitHub release. Run by hand instead and it produces the same two files as build
+  artifacts and creates no release, which is the way to check a packaging change without
+  cutting a version.
 
 The verification step exists because of the `.pri` gotcha below: a published build that is
 missing it dies on its first XAML load while the ordinary build output runs perfectly. The
-step fails the release rather than shipping a build that cannot start.
+step fails the release rather than shipping a build that cannot start. The installer is
+checked the same way - an Inno Setup script that picked up no payload still compiles to a
+valid .exe, so the step fails when the result is too small to hold the app.
+
+### The installer
+
+`installer/YboLauncher.iss` is an Inno Setup script, built in CI by `ISCC.exe` from the
+runner image. There is no runtime to install and nothing to register, so it only lays down
+a folder, a Start Menu shortcut and an uninstaller.
+
+**Per-user, deliberately.** `PrivilegesRequired=lowest` puts it in
+`%LocalAppData%\Programs\YBO Launcher` with no UAC prompt, which matches an app that
+already keeps its settings per user and registers its optional startup entry under HKCU.
+
+`AppId` is a fixed GUID and must never change: it is what makes the next version upgrade
+an install in place instead of landing beside it.
+
+Uninstalling deletes the `Run` value the "start with Windows" setting writes - it points at
+the copy being removed, so leaving it would fail silently on every sign-in - and then
+*offers* to delete `%LocalAppData%\YBO Launcher`. That prompt defaults to No and is skipped
+entirely during a silent uninstall: tabs and settings are the user's, not the installer's.
 
 ## Dependency choices
 

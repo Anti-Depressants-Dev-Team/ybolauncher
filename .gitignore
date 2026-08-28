@@ -52,3 +52,6 @@ desktop.ini
 
 ## Release publish output
 publish/
+
+## Installer output
+installer/output/

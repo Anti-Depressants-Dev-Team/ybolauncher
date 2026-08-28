@@ -51,6 +51,22 @@ A published build carries its own .NET runtime and Windows App SDK, so a machine
 
 ---
 
+## Install
+
+Grab the latest [release](https://github.com/Anti-Depressants-Dev-Team/ybolauncher/releases):
+
+- **`YboLauncher-<version>-setup.exe`** — installer. It installs for the current user only,
+  so Windows never asks for administrator rights, and it adds a Start Menu shortcut and an
+  entry in Apps & features. Uninstalling offers to remove your tabs and settings as well,
+  and defaults to keeping them.
+- **`YboLauncher-<version>-win-x64.zip`** — the same app as a plain folder. Unzip anywhere
+  and run `YboLauncher.exe`. Put an empty `portable.txt` beside the executable and it keeps
+  its data in `data\` next to itself rather than in `%LocalAppData%`.
+
+Neither needs anything else installed.
+
+---
+
 ## Build and run
 
 ```bash
@@ -80,15 +96,16 @@ For ARM64, swap `-r win-x64` for `-r win-arm64`.
 ### Releases
 
 Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml), which tests,
-publishes, checks the published folder is complete and attaches the zip to a GitHub
-release:
+publishes, checks the published folder is complete, builds the installer from
+[`installer/YboLauncher.iss`](installer/YboLauncher.iss) with Inno Setup, and attaches both
+the setup .exe and the zip to a GitHub release:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-Running the workflow by hand instead builds the same zip and leaves it as a build artifact
-rather than creating a release. Every push and pull request also goes through
+Running the workflow by hand instead builds the same two files and leaves them as build
+artifacts rather than creating a release. Every push and pull request also goes through
 [CI](.github/workflows/ci.yml), which builds and runs the tests on Windows.
 
 
