@@ -1,6 +1,8 @@
+using Launcher.App.Controls;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
 using Launcher.Core;
+using Launcher.Core.Models;
 using Launcher.Core.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
@@ -8,15 +10,17 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
+using Windows.Foundation.Collections;
 using Windows.Graphics;
 using WinUIEx;
 
 namespace Launcher.App.Views;
 
 /// <summary>
-/// Shell window: custom title bar, Mica backdrop and the navigation frame.
+/// Shell window: custom title bar, Mica backdrop, the tab strip, and the Settings surface
+/// that swaps in over it.
 /// </summary>
 public sealed partial class MainWindow : WindowEx
 {
@@ -32,20 +36,22 @@ public sealed partial class MainWindow : WindowEx
 
     public MainWindow(
         ShellViewModel viewModel,
+        LibraryViewModel library,
         ISettingsService settings,
         IThemeService theme,
         IDialogService dialogs)
     {
         ViewModel = viewModel;
+        Library = library;
         _settings = settings;
         _theme = theme;
 
         InitializeComponent();
 
         // Handed the window here rather than through the container: DialogService is
-        // resolved by page view models that are themselves built while this window is
-        // still under construction, so taking MainWindow as a dependency would re-enter
-        // the container mid-construction.
+        // resolved by view models that are themselves built while this window is still
+        // under construction, so taking MainWindow as a dependency would re-enter the
+        // container mid-construction.
         dialogs.Attach(this);
 
         Title = AppInfo.ProductName;
@@ -67,39 +73,127 @@ public sealed partial class MainWindow : WindowEx
         _placementSaveTimer.Tick += (_, _) => SavePlacement();
 
         // Subscribe before restoring, so the initial placement is itself persisted.
-        // Otherwise a first run that is never moved would leave no settings.json at all.
         AppWindow.Changed += OnAppWindowChanged;
 
         RestorePlacement();
         AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarInteractiveRegions();
         AppTitleBar.Loaded += (_, _) => UpdateTitleBarInteractiveRegions();
 
-        // Selecting the first item navigates, which constructs a page and resolves its view
-        // model. Deferred to Loaded so none of that happens while this constructor is still
-        // running.
-        NavView.Loaded += (_, _) => NavView.SelectedItem ??= NavView.MenuItems[0];
+        SettingsFrame.Loaded += (_, _) =>
+        {
+            if (SettingsFrame.Content is null)
+            {
+                SettingsFrame.Navigate(typeof(SettingsPage));
+            }
+        };
     }
 
     public ShellViewModel ViewModel { get; }
 
-    private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    public LibraryViewModel Library { get; }
+
+    // ---- tabs ----
+
+    private async void OnAddTabClick(TabView sender, object args) =>
+        await Library.AddTabCommand.ExecuteAsync(null);
+
+    private async void OnTabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
-        if (args.SelectedItem is not NavigationViewItem { Tag: string tag })
+        if (args.Item is TabViewModel tab)
+        {
+            // The view model confirms first, then deletes. The strip updates through the
+            // service's TabsChanged event rather than by removing the item here, so a
+            // cancelled confirmation leaves the tab exactly where it was.
+            await Library.RequestDeleteTabAsync(tab);
+        }
+    }
+
+    /// <summary>Persists a tab strip reorder done by dragging a tab header.</summary>
+    private void OnTabItemsChanged(TabView sender, IVectorChangedEventArgs args)
+    {
+        // Ignore the churn from our own reconciliation, or it would be written straight
+        // back as if the user had reordered.
+        if (Library.IsSyncingTabs)
         {
             return;
         }
 
-        Type pageType = tag switch
-        {
-            "settings" => typeof(SettingsPage),
-            _ => typeof(HomePage),
-        };
+        _ = Library.ReorderTabsAsync([.. Library.Tabs.Select(t => t.Id)]);
+    }
 
-        if (ContentFrame.CurrentSourcePageType != pageType)
+    private async void OnEditTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TabViewModel tab })
         {
-            ContentFrame.Navigate(pageType, null, new EntranceNavigationTransitionInfo());
+            await Library.EditTabAsync(tab);
         }
     }
+
+    private async void OnDeleteTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TabViewModel tab })
+        {
+            await Library.RequestDeleteTabAsync(tab);
+        }
+    }
+
+    // ---- dropping apps onto a tab header ----
+
+    private void OnTabDragOver(object sender, DragEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TabViewModel target }
+            || !e.DataView.Properties.ContainsKey(DragFormats.EntryIds))
+        {
+            return;
+        }
+
+        string? sourceTabId = ReadSourceTabId(e);
+
+        // Dropping back where it came from does nothing, so do not invite it.
+        if (string.Equals(sourceTabId, target.Id, StringComparison.Ordinal))
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            e.Handled = true;
+            return;
+        }
+
+        // From Home it is a copy - Home keeps everything. Out of a custom tab it is a move.
+        bool fromHome = string.IsNullOrEmpty(sourceTabId)
+            || string.Equals(sourceTabId, LauncherTab.HomeId, StringComparison.Ordinal);
+
+        e.AcceptedOperation = fromHome ? DataPackageOperation.Copy : DataPackageOperation.Move;
+        e.DragUIOverride.Caption = (fromHome ? "Add to " : "Move to ") + target.Name;
+        e.DragUIOverride.IsCaptionVisible = true;
+        e.Handled = true;
+    }
+
+    private async void OnTabDrop(object sender, DragEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TabViewModel target })
+        {
+            return;
+        }
+
+        if (!e.DataView.Properties.TryGetValue(DragFormats.EntryIds, out object? payload)
+            || payload is not string joined)
+        {
+            return;
+        }
+
+        string[] ids = joined.Split(DragFormats.Separator, StringSplitOptions.RemoveEmptyEntries);
+        string? sourceTabId = ReadSourceTabId(e);
+
+        e.Handled = true;
+
+        await Library.DropEntriesOnTabAsync(ids, sourceTabId, target.Id);
+    }
+
+    private static string? ReadSourceTabId(DragEventArgs e) =>
+        e.DataView.Properties.TryGetValue(DragFormats.SourceTabId, out object? value)
+            ? value as string
+            : null;
+
+    // ---- title bar and window placement ----
 
     /// <summary>
     /// Marks the search box as a passthrough region so clicks reach it instead of being
@@ -135,7 +229,7 @@ public sealed partial class MainWindow : WindowEx
 
     private void RestorePlacement()
     {
-        Core.Models.WindowPlacement placement = _settings.Current.Window;
+        WindowPlacement placement = _settings.Current.Window;
 
         if (placement.HasValue)
         {

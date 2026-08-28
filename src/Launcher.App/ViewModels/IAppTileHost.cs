@@ -27,4 +27,13 @@ public interface IAppTileHost
     Task ToggleHiddenAsync(AppTileViewModel tile);
 
     Task ShowPropertiesAsync(AppTileViewModel tile);
+
+    /// <summary>Adds the tile's app to another tab, leaving it where it is.</summary>
+    Task PinToTabAsync(AppTileViewModel tile, string tabId);
+
+    /// <summary>
+    /// Removes the tile from the custom tab it is displayed in. Never removes the app
+    /// itself, and does nothing on Home.
+    /// </summary>
+    Task UnpinAsync(AppTileViewModel tile);
 }

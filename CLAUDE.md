@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 3 (Home tab) complete.** See "Phase status" at the bottom.
+**Current state: Phase 4 (Tabs) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -168,6 +168,31 @@ Home". Same shape as `ShowFilteredEntries`: entries are marked, never dropped.
 Launch counts and user edits are written back to `apps.json` on an 800 ms debounce, so
 launching several apps in a row does not mean several full rewrites.
 
+## Tabs
+
+`TabService` is the only thing that mutates the tab list, so the Home invariants live in
+one place: Home always exists, is always index 0, and is never renamed, moved or deleted.
+`Normalize` re-establishes all of that when loading, so a hand-edited or partially written
+`tabs.json` — no Home, two Homes, duplicate ids — still yields a usable strip.
+
+**Home membership is implicit.** Home shows every discovered app, so `AddEntriesAsync` and
+`RemoveEntriesAsync` are no-ops for it; an app leaves Home by being hidden, not un-listed.
+Home's `EntryIds` is an *order hint* rather than a membership list: anything missing from
+it is appended alphabetically, which is what stops a newly installed app from vanishing
+after the user has manually reordered.
+
+**Drop rules** (SPEC.md): from Home it copies, because Home keeps everything; out of a
+custom tab it moves, removing from the source only. Dropping a custom tab's tile onto Home
+therefore just removes it from that tab, which falls out of the same rule. Drags carry
+their payload in `DataPackage.Properties` (see `DragFormats`) — they never leave the
+process, so there is no need for a registered clipboard format.
+
+**Reorder** is detected from the `ObservableCollection` reporting a `Move`, which is the
+only signal that distinguishes a user drag from a rebuild — hence `TabViewModel.IsRebuilding`
+and `LibraryViewModel.IsSyncingTabs`, which suppress write-back during our own churn. A
+manual reorder switches the tab to `SortMode.Manual`, or the new order would silently
+revert on the next rebuild.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -229,6 +254,11 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
   Automation, not by assumption.
 - XAML event handlers **cannot be `static`** — the generated code binds them through an
   instance reference and fails with CS0176.
+- **Compiled-binding converters do not work in a XAML file whose root is a `Window`.** The
+  generated code calls `SetConverterLookupRoot(this)`, which needs a `FrameworkElement`;
+  a `Window` is not one, and it fails with a confusing CS1503 inside `MainWindow.g.cs`.
+  MainWindow therefore binds `Visibility`-typed view model properties directly. Converters
+  are fine inside `AppGridView`, which is a `UserControl`.
 - `DialogService` gets the window through `Attach`, not the constructor. Page view models
   resolve it while `MainWindow` is still being constructed, so a `MainWindow` dependency
   would re-enter the container mid-construction. `NavigationView.SelectedItem` is likewise
@@ -241,7 +271,7 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | 1. Skeleton | **Done** — window, custom titlebar, Mica, theme switching, DI, nav shell |
 | 2. Discovery | **Done** — Start Menu + package catalog, dedupe, junk filter, icon cache |
 | 3. Home tab | **Done** — virtualized grid, tiles, launching, context menu, InfoBar |
-| 4. Tabs | Not started |
+| 4. Tabs | **Done** — create/rename/reorder/delete, drag-and-drop, Explorer drop |
 | 5. Search | Not started |
 | 6. Polish | Not started |
 | 7. System integration | Not started |
@@ -261,6 +291,7 @@ Phase 5.
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
 | `ILaunchService` | `LaunchService` |
+| `ITabService` | `TabService` |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |
 | `IDialogService` | `DialogService` (app layer — needs `XamlRoot` and the HWND) |
-| `StoragePaths`, `ShellLinkResolver`, `JunkFilter` | concrete singletons |
+| `StoragePaths`, `ShellLinkResolver`, `JunkFilter`, `UserEntryFactory` | concrete singletons |

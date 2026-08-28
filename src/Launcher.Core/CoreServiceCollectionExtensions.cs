@@ -4,6 +4,7 @@ using Launcher.Core.Interop;
 using Launcher.Core.Launching;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
+using Launcher.Core.Tabs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Launcher.Core;
@@ -39,6 +40,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IAppSource, PackagedAppSource>();
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
         services.AddSingleton<ILaunchService, LaunchService>();
+        services.AddSingleton<ITabService, TabService>();
+        services.AddSingleton<UserEntryFactory>();
 
         return services;
     }

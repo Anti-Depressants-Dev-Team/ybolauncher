@@ -35,7 +35,15 @@ public interface IDialogService
     Task<string?> PickIconSourceAsync();
 
     Task<bool> ConfirmAsync(string title, string message, string acceptButtonText);
+
+    /// <summary>
+    /// Creates or edits a tab's name, icon and accent colour. Returns null when cancelled.
+    /// </summary>
+    Task<TabEdit?> EditTabAsync(string title, string name, string? glyph, string? accentColorHex);
 }
+
+/// <summary>Result of the tab editor.</summary>
+public sealed record TabEdit(string Name, string? Glyph, string? AccentColorHex);
 
 /// <summary>Result of the launch-options dialog.</summary>
 /// <param name="Arguments">New arguments, or null to clear them.</param>

@@ -25,12 +25,19 @@ public sealed partial class AppTileViewModel : ObservableObject
     [ObservableProperty]
     private bool _isHidden;
 
-    public AppTileViewModel(AppEntry entry, IIconService icons, ILaunchService launch, IAppTileHost host)
+    public AppTileViewModel(
+        AppEntry entry,
+        TabViewModel owner,
+        IIconService icons,
+        ILaunchService launch,
+        IAppTileHost host)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(launch);
 
         Entry = entry;
+        Owner = owner;
         _icons = icons;
         _host = host;
 
@@ -44,6 +51,12 @@ public sealed partial class AppTileViewModel : ObservableObject
     }
 
     public AppEntry Entry { get; }
+
+    /// <summary>The tab this tile is displayed in.</summary>
+    public TabViewModel Owner { get; }
+
+    /// <summary>Only tiles on a custom tab can be unpinned; Home membership is implicit.</summary>
+    public bool CanUnpin => !Owner.IsHome;
 
     public bool CanLaunchAsAdministrator { get; }
 
@@ -185,4 +198,12 @@ public sealed partial class AppTileViewModel : ObservableObject
 
     [RelayCommand]
     private Task ShowPropertiesAsync() => _host.ShowPropertiesAsync(this);
+
+    /// <summary>Bound from the dynamically built "Pin to tab" submenu.</summary>
+    [RelayCommand]
+    private Task PinToTabAsync(string? tabId) =>
+        string.IsNullOrWhiteSpace(tabId) ? Task.CompletedTask : _host.PinToTabAsync(this, tabId);
+
+    [RelayCommand]
+    private Task UnpinAsync() => _host.UnpinAsync(this);
 }

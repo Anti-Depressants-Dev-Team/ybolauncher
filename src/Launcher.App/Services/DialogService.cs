@@ -235,6 +235,75 @@ public sealed class DialogService : IDialogService, IDisposable
         }
     }
 
+    /// <summary>Preset accent colours, kept short so the picker stays a single row.</summary>
+    private static readonly (string Name, string? Hex)[] AccentPresets =
+    [
+        ("Default", null),
+        ("Red", "#E74856"),
+        ("Orange", "#FF8C00"),
+        ("Yellow", "#FFB900"),
+        ("Green", "#10893E"),
+        ("Teal", "#00B7C3"),
+        ("Blue", "#0078D4"),
+        ("Purple", "#8764B8"),
+        ("Pink", "#E3008C"),
+    ];
+
+    public async Task<TabEdit?> EditTabAsync(string title, string name, string? glyph, string? accentColorHex)
+    {
+        var nameBox = new TextBox
+        {
+            Text = name,
+            PlaceholderText = "Tab name",
+            SelectionStart = 0,
+            SelectionLength = name.Length,
+        };
+
+        var glyphBox = new TextBox
+        {
+            Text = glyph ?? string.Empty,
+            PlaceholderText = "Optional emoji, for example 🎮",
+            MaxLength = 8,
+        };
+
+        var colorBox = new ComboBox { MinWidth = 180 };
+        foreach ((string presetName, string? hex) in AccentPresets)
+        {
+            colorBox.Items.Add(new ComboBoxItem { Content = presetName, Tag = hex });
+        }
+
+        int selected = Array.FindIndex(
+            AccentPresets,
+            p => string.Equals(p.Hex, accentColorHex, StringComparison.OrdinalIgnoreCase));
+
+        colorBox.SelectedIndex = selected >= 0 ? selected : 0;
+
+        var panel = new StackPanel { Spacing = 8, MinWidth = 360 };
+        panel.Children.Add(new TextBlock { Text = "Name" });
+        panel.Children.Add(nameBox);
+        panel.Children.Add(new TextBlock { Text = "Icon", Margin = new Thickness(0, 8, 0, 0) });
+        panel.Children.Add(glyphBox);
+        panel.Children.Add(new TextBlock { Text = "Accent colour", Margin = new Thickness(0, 8, 0, 0) });
+        panel.Children.Add(colorBox);
+
+        ContentDialog dialog = CreateDialog(title, panel, "Save");
+
+        if (await ShowAsync(dialog) != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+
+        string chosenName = nameBox.Text.Trim();
+        if (chosenName.Length == 0)
+        {
+            chosenName = name.Length > 0 ? name : "New tab";
+        }
+
+        string? chosenHex = (colorBox.SelectedItem as ComboBoxItem)?.Tag as string;
+
+        return new TabEdit(chosenName, NullIfBlank(glyphBox.Text), chosenHex);
+    }
+
     public async Task<bool> ConfirmAsync(string title, string message, string acceptButtonText)
     {
         var text = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 400 };

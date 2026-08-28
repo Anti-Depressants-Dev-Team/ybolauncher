@@ -205,6 +205,50 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
     public Task SaveAsync(CancellationToken cancellationToken = default) =>
         SaveCatalogAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<string>> AddOrMergeAsync(
+        IEnumerable<AppEntry> entries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+
+        var existingById = new Dictionary<string, AppEntry>(StringComparer.Ordinal);
+        foreach (AppEntry entry in _entries)
+        {
+            existingById[entry.Id] = entry;
+        }
+
+        var ids = new List<string>();
+        bool added = false;
+
+        foreach (AppEntry candidate in entries)
+        {
+            if (string.IsNullOrWhiteSpace(candidate.Id))
+            {
+                continue;
+            }
+
+            if (existingById.TryGetValue(candidate.Id, out AppEntry? existing))
+            {
+                // Already known - reuse it rather than duplicating the tile.
+                ids.Add(existing.Id);
+                continue;
+            }
+
+            _entries.Add(candidate);
+            existingById[candidate.Id] = candidate;
+            ids.Add(candidate.Id);
+            added = true;
+        }
+
+        if (added)
+        {
+            await SaveCatalogAsync(cancellationToken).ConfigureAwait(false);
+            EntriesChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return ids;
+    }
+
     private async Task SaveCatalogAsync(CancellationToken cancellationToken)
     {
         var catalog = new AppCatalog

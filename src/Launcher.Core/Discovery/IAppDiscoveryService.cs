@@ -37,4 +37,14 @@ public interface IAppDiscoveryService
     /// already knows what it changed, and a full list rebuild would lose selection.
     /// </summary>
     Task SaveAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds entries the user dragged in, reusing the existing entry whenever one already
+    /// has the same id - dropping a shortcut for an app that discovery already found must
+    /// not create a second tile for it.
+    /// </summary>
+    /// <returns>The catalog ids of the supplied entries, in the same order.</returns>
+    Task<IReadOnlyList<string>> AddOrMergeAsync(
+        IEnumerable<AppEntry> entries,
+        CancellationToken cancellationToken = default);
 }
