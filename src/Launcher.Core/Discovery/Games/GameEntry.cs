@@ -21,6 +21,12 @@ public sealed record GameEntry
     /// </summary>
     public string? ExecutablePath { get; init; }
 
+    /// <summary>
+    /// Command line for <see cref="ExecutablePath"/>. Riot runs every game through one
+    /// shared client executable, so the product is a switch rather than a path.
+    /// </summary>
+    public string? Arguments { get; init; }
+
     public string? InstallDirectory { get; init; }
 
     /// <summary>

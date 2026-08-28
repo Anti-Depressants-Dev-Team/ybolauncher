@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # WinUI 3 and the Windows App SDK only build on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # global.json pins the SDK, so there is one version to change.
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore YboLauncher.sln
+
+      - name: Build
+        run: dotnet build YboLauncher.sln --configuration Debug --no-restore
+
+      - name: Test
+        run: dotnet test src/Launcher.Core.Tests/Launcher.Core.Tests.csproj --configuration Debug --no-build --verbosity normal

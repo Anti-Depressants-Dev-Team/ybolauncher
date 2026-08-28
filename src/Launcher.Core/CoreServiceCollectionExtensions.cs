@@ -54,6 +54,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IGameLibrary, AmazonGamesLibrary>();
         services.AddSingleton<IGameLibrary, RockstarLibrary>();
         services.AddSingleton<IGameLibrary, HoYoPlayLibrary>();
+        services.AddSingleton<IGameLibrary, RiotLibrary>();
         services.AddSingleton<IAppSource, GameLauncherAppSource>();
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
         services.AddSingleton<ILaunchService, LaunchService>();

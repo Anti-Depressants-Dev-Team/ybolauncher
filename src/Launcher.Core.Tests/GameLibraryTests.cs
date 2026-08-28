@@ -160,6 +160,7 @@ public sealed class GameLibraryIntegrationTests
             new AmazonGamesLibrary(),
             new RockstarLibrary(),
             new HoYoPlayLibrary(),
+            new RiotLibrary(() => null),
         ];
 
         foreach (IGameLibrary library in libraries)

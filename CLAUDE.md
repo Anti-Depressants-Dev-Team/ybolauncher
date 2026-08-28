@@ -147,10 +147,10 @@ target so the shortcut's own icon location and index are honoured.
 
 `GameLauncherAppSource` is one `IAppSource` over several `IGameLibrary` implementations:
 Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop), Battle.net, itch.io, Game
-Jolt, Amazon Games, Rockstar and HoYoPlay. Each reads the launcher's own bookkeeping
-rather than guessing at folders, and each returns an empty list when that launcher is absent — the
-normal case — so adding another store is a new small class and a DI registration, nothing
-else.
+Jolt, Amazon Games, Rockstar, HoYoPlay and Riot. Each reads the launcher's own
+bookkeeping rather than guessing at folders, and each returns an empty list when that
+launcher is absent — the normal case — so adding another store is a new small class and a
+DI registration, nothing else.
 
 - **Steam** parses `libraryfolders.vdf` for every library root (games are routinely spread
   across drives) and one `appmanifest_*.acf` per app. `VdfParser` is a small, deliberately
@@ -191,6 +191,15 @@ else.
   (`YuanShen.exe` and `GenshinImpact.exe` are the same game). These titles launch by
   executable: there is no documented protocol for starting one, and the game brings up its
   own updater and sign-in anyway.
+- **Riot Games** installs one client for every game: `RiotClientServices.exe` starts a
+  product by switch, not by having a launchable executable per game. Its path comes from
+  `%ProgramData%\Riot Games\RiotClientInstalls.json` and the installed products are the
+  folders under `Metadata`, each named `<product>.<patchline>` — so the folder name alone
+  gives both, and only the install path has to be read out of the product settings file
+  (one key, read as a line rather than by taking a YAML dependency). This is the one
+  library that needs `GameEntry.Arguments`, and the only one where the icon deliberately
+  comes from somewhere other than the launch target: every game would otherwise wear the
+  Riot Client's icon.
 - **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
   launch their executable directly; the other two go through their launcher's protocol.
 
@@ -215,7 +224,8 @@ No game launcher is installed on the development machine, so this code is covere
 fixture tests that write a real folder layout to disk - a Steam library in
 `GameLauncherAppSourceTests`, itch and Game Jolt installs in `IndieLauncherTests`, Amazon
 and Rockstar installs in `StoreLauncherTests`, HoYoverse build folders in
-`HoYoPlayLibraryTests` - rather than by a live scan. For the
+`HoYoPlayLibraryTests`, a Riot ProgramData layout in `RiotLibraryTests` - rather than by a
+live scan. For the
 registry-based launchers only the entry-to-game step is covered that way; the registry walk
 itself needs an installed launcher. Every file name and data shape here comes from those
 clients' published behaviour rather than from a machine that has them, so each reader is
@@ -400,6 +410,25 @@ This paid for itself immediately — see the PRI note below.
 inside SPEC.md's one-second target. The catalog loads from `apps.json` and icons decode
 lazily as tiles scroll into view, so the count of installed apps barely moves the number.
 
+## Licence and CI
+
+MIT, in `LICENSE`. `Directory.Build.props` carries the matching `Copyright`, so the two
+do not drift.
+
+Two workflows, both on `windows-latest` because WinUI 3 does not build anywhere else, and
+both taking the SDK version from `global.json` rather than repeating it:
+
+- **`ci.yml`** builds the solution and runs the tests on every push and pull request to
+  `main`.
+- **`release.yml`** runs on a `v*` tag: test, publish `-c Release -r win-x64`, verify the
+  publish output, zip it and attach it to a GitHub release. Run by hand instead and it
+  produces the same zip as a build artifact and creates no release, which is the way to
+  check a packaging change without cutting a version.
+
+The verification step exists because of the `.pri` gotcha below: a published build that is
+missing it dies on its first XAML load while the ordinary build output runs perfectly. The
+step fails the release rather than shipping a build that cannot start.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -530,7 +559,7 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IIconService` | `IconService` |
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource`, `GameLauncherAppSource` |
-| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary`, `ItchLibrary`, `GameJoltLibrary`, `AmazonGamesLibrary`, `RockstarLibrary` |
+| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary`, `ItchLibrary`, `GameJoltLibrary`, `AmazonGamesLibrary`, `RockstarLibrary`, `HoYoPlayLibrary`, `RiotLibrary` |
 | `ILaunchService` | `LaunchService` |
 | `IStartupService` | `StartupService` (HKCU Run key) |
 | `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |

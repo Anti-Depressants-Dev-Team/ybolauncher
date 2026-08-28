@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          # A tag gives the release its version; a manual run is stamped with the commit
+          # and produces a downloadable build rather than a release.
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+            $assemblyVersion = $version -replace '[-+].*$', ''
+            $isRelease = 'true'
+          } else {
+            $version = "0.0.0-$($env:GITHUB_SHA.Substring(0, 7))"
+            $assemblyVersion = '0.0.0'
+            $isRelease = 'false'
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "assemblyVersion=$assemblyVersion" >> $env:GITHUB_OUTPUT
+          "isRelease=$isRelease" >> $env:GITHUB_OUTPUT
+          "name=YboLauncher-$version-win-x64" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test src/Launcher.Core.Tests/Launcher.Core.Tests.csproj --configuration Release
+
+      - name: Publish
+        run: dotnet publish src/Launcher.App/Launcher.App.csproj -c Release -r win-x64 -p:Version=${{ steps.version.outputs.assemblyVersion }}
+
+      - name: Check the publish output is complete
+        shell: pwsh
+        run: |
+          # dotnet publish has dropped the app's .pri before, which leaves a build that
+          # dies on its first XAML load. The build output runs fine, so only a check on
+          # the published copy catches it.
+          $publish = 'src/Launcher.App/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish'
+
+          foreach ($file in 'YboLauncher.exe', 'YboLauncher.pri', 'Microsoft.WindowsAppRuntime.Bootstrap.dll') {
+            if (-not (Test-Path (Join-Path $publish $file))) {
+              throw "Missing $file in the publish output."
+            }
+          }
+
+          Write-Host 'Publish output looks complete.'
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $publish = 'src/Launcher.App/bin/Release/net9.0-windows10.0.19041.0/win-x64/publish'
+          Compress-Archive -Path "$publish/*" -DestinationPath "${{ steps.version.outputs.name }}.zip"
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.name }}
+          path: ${{ steps.version.outputs.name }}.zip
+
+      - name: Create the release
+        if: steps.version.outputs.isRelease == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Single-quoted here-string: nothing in the notes is expanded or escaped.
+          $notes = @'
+          Unzip anywhere and run `YboLauncher.exe`. No installer and no prerequisites - the
+          .NET runtime and the Windows App SDK travel with it.
+
+          Requires Windows 10 1809 (build 17763) or newer, 64-bit.
+          '@
+
+          $notes | Out-File -FilePath release-notes.md -Encoding utf8
+
+          gh release create $env:GITHUB_REF_NAME `
+            "${{ steps.version.outputs.name }}.zip" `
+            --title "YBO Launcher ${{ steps.version.outputs.version }}" `
+            --notes-file release-notes.md `
+            --generate-notes

@@ -17,11 +17,12 @@ caches every icon. Newly installed apps appear on their own — a file watcher a
 package catalog tell it when something changed.
 
 **Your games too.** Steam, Epic, GOG, Ubisoft Connect, EA, Battle.net, itch.io, Game Jolt,
-Amazon Games, Rockstar and HoYoPlay libraries are read from each launcher's own records, so
-installed games appear alongside everything else and start through their launcher —
-overlay, cloud saves and all. Where a store has no launch protocol (GOG, itch.io, Game Jolt,
-Rockstar, HoYoPlay) the game runs directly. Xbox Game Pass titles arrive through the
-package catalog. Switch the whole thing off in Settings if you do not want it.
+Amazon Games, Rockstar, HoYoPlay and Riot libraries are read from each launcher's own
+records, so installed games appear alongside everything else and start through their
+launcher — overlay, cloud saves and all. Where a store has no launch protocol (GOG,
+itch.io, Game Jolt, Rockstar, HoYoPlay) the game runs directly. Xbox Game Pass titles
+arrive through the package catalog. Switch the whole thing off in Settings if you do not
+want it.
 
 **Tabs you arrange.** Home always holds every app and can't be deleted. Every other tab is
 yours: name it, pick an icon and an accent colour, drag apps in from Home, drag files
@@ -76,6 +77,21 @@ to install.
 
 For ARM64, swap `-r win-x64` for `-r win-arm64`.
 
+### Releases
+
+Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml), which tests,
+publishes, checks the published folder is complete and attaches the zip to a GitHub
+release:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Running the workflow by hand instead builds the same zip and leaves it as a build artifact
+rather than creating a release. Every push and pull request also goes through
+[CI](.github/workflows/ci.yml), which builds and runs the tests on Windows.
+
+
 ---
 
 ## Where your data lives
@@ -124,7 +140,7 @@ be undone by importing that backup.
 src/
   Launcher.Core/        Models, storage, discovery, search, launching. No WinUI references.
   Launcher.App/         WinUI 3 app: Views, ViewModels, Controls, Services.
-  Launcher.Core.Tests/  xUnit — 210 tests.
+  Launcher.Core.Tests/  xUnit — 361 tests.
 ```
 
 `Launcher.Core` holds everything that can be tested without a window, which is most of the
@@ -141,3 +157,14 @@ storage layer.
 - **Section headers within a tab.** Grouping inside a single tab.
 - **MSIX packaging.** The project is structured so it can be added without source changes —
   add `Package.appxmanifest` and logo assets, then flip two properties.
+
+---
+
+## Licence
+
+[MIT](LICENSE).
+
+The launcher reads each game store's own records to find installed games; it is not
+affiliated with, endorsed by, or connected to Valve, Epic, GOG, Ubisoft, EA, Blizzard,
+itch.io, Game Jolt, Amazon, Rockstar, HoYoverse or Riot Games. All product names and
+trademarks belong to their respective owners.
