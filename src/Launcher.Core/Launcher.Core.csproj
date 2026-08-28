@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pure logic layer. Must never reference WinUI / Microsoft.UI.Xaml so it stays
+    unit-testable without a UI thread. See CLAUDE.md.
+    The -windows TFM is required for the WinRT projections (PackageManager,
+    AppListEntry) that app discovery needs in Phase 2 - those are WinRT, not XAML.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <RootNamespace>Launcher.Core</RootNamespace>
+    <AssemblyName>Launcher.Core</AssemblyName>
+    <UseWinUI>false</UseWinUI>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Launcher.Core.Tests" />
+  </ItemGroup>
+
+</Project>

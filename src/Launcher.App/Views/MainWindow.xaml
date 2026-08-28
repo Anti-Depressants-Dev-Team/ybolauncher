@@ -1,0 +1,100 @@
+<winex:WindowEx
+    x:Class="Launcher.App.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:winex="using:WinUIEx"
+    mc:Ignorable="d"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Custom title bar. The drag region is this whole grid; the search box is
+            re-registered as a passthrough region in code-behind so it can take input.
+        -->
+        <Grid
+            x:Name="AppTitleBar"
+            Grid.Row="0"
+            Height="{StaticResource TitleBarHeight}">
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <!-- Space for the three system caption buttons (46px each at 100% scale).
+                     A literal GridLength, not a StaticResource: ColumnDefinition.Width is
+                     a GridLength and will not accept an x:Double. -->
+                <ColumnDefinition Width="138" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel
+                Grid.Column="0"
+                Margin="16,0,0,0"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="12">
+
+                <FontIcon
+                    AutomationProperties.AccessibilityView="Raw"
+                    FontSize="16"
+                    Glyph="&#xE71D;" />
+
+                <TextBlock
+                    x:Name="AppTitleText"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="{x:Bind ViewModel.Title, Mode=OneWay}" />
+            </StackPanel>
+
+            <AutoSuggestBox
+                x:Name="TitleBarSearchBox"
+                Grid.Column="1"
+                Width="420"
+                MaxWidth="520"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="Search apps"
+                PlaceholderText="{x:Bind ViewModel.SearchPlaceholder, Mode=OneWay}"
+                QueryIcon="Find" />
+        </Grid>
+
+        <NavigationView
+            x:Name="NavView"
+            Grid.Row="1"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            OpenPaneLength="200"
+            PaneDisplayMode="Left"
+            SelectionChanged="OnNavigationSelectionChanged">
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem
+                    AutomationProperties.Name="Home"
+                    Content="Home"
+                    Tag="home">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem
+                    AutomationProperties.Name="Settings"
+                    Content="Settings"
+                    Tag="settings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+    </Grid>
+
+</winex:WindowEx>

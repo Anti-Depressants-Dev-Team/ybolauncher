@@ -1,0 +1,42 @@
+<Project>
+
+  <!--
+    Shared build configuration for every project in the repo.
+    Product-facing naming lives here so it is defined in exactly one place.
+  -->
+  <PropertyGroup>
+    <Product>YBO Launcher</Product>
+    <Company>YBO</Company>
+    <Authors>YBO</Authors>
+    <Copyright>Copyright (c) YBO</Copyright>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <!--
+    Single source of truth for the target framework.
+    net9.0-windows10.0.19041.0 is the minimum TFM the Windows App SDK supports;
+    SupportedOSPlatformVersion drops the runtime floor to Windows 10 1809 per SPEC.md.
+  -->
+  <PropertyGroup>
+    <WindowsTargetFramework>net9.0-windows10.0.19041.0</WindowsTargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <DefaultPlatform>x64</DefaultPlatform>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      .editorconfig style rules stay IDE suggestions rather than build errors.
+      TreatWarningsAsErrors above still fails the build on real compiler warnings.
+    -->
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+  </PropertyGroup>
+
+</Project>

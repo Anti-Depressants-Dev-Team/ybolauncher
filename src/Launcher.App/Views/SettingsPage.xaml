@@ -1,0 +1,106 @@
+<Page
+    x:Class="Launcher.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+    mc:Ignorable="d"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+
+    <ScrollViewer>
+        <StackPanel Margin="{StaticResource PageContentMargin}" Spacing="4">
+
+            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Settings" />
+
+            <TextBlock
+                Margin="0,0,0,12"
+                Style="{StaticResource PageSubtitleTextStyle}"
+                Text="Discovery sources, hotkeys, tray behaviour and the rest arrive with their phases." />
+
+            <TextBlock
+                Margin="0,8,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Appearance" />
+
+            <tk:SettingsCard
+                Description="Choose a light or dark theme, or follow the Windows setting."
+                Header="App theme">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE790;" />
+                </tk:SettingsCard.HeaderIcon>
+
+                <ComboBox
+                    x:Name="ThemeCombo"
+                    MinWidth="160"
+                    AutomationProperties.Name="App theme"
+                    SelectedIndex="{x:Bind ViewModel.SelectedThemeIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="Use system setting" />
+                    <ComboBoxItem Content="Light" />
+                    <ComboBoxItem Content="Dark" />
+                </ComboBox>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="Mica Alt is slightly darker and tints more strongly toward the desktop wallpaper."
+                Header="Window backdrop">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE81E;" />
+                </tk:SettingsCard.HeaderIcon>
+
+                <ComboBox
+                    x:Name="BackdropCombo"
+                    MinWidth="160"
+                    AutomationProperties.Name="Window backdrop"
+                    SelectedIndex="{x:Bind ViewModel.SelectedBackdropIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="Mica" />
+                    <ComboBoxItem Content="Mica Alt" />
+                </ComboBox>
+            </tk:SettingsCard>
+
+            <TextBlock
+                Margin="0,16,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Storage" />
+
+            <tk:SettingsExpander
+                Description="{x:Bind ViewModel.StorageModeDescription}"
+                Header="Where your layout is stored">
+                <tk:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE8B7;" />
+                </tk:SettingsExpander.HeaderIcon>
+
+                <Button
+                    AutomationProperties.Name="Open the storage folder"
+                    Command="{x:Bind ViewModel.OpenStorageFolderCommand}"
+                    Content="Open folder" />
+
+                <tk:SettingsExpander.Items>
+                    <tk:SettingsCard
+                        HorizontalContentAlignment="Left"
+                        ContentAlignment="Left">
+                        <TextBlock
+                            IsTextSelectionEnabled="True"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="{x:Bind ViewModel.StorageLocation}"
+                            TextWrapping="Wrap" />
+                    </tk:SettingsCard>
+                </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
+
+            <TextBlock
+                Margin="0,16,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="About" />
+
+            <tk:SettingsCard
+                Description="{x:Bind ViewModel.VersionDescription}"
+                Header="YBO Launcher">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE946;" />
+                </tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</Page>

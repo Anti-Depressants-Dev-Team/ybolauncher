@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <RootNamespace>Launcher.App</RootNamespace>
+    <AssemblyName>YboLauncher</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <!--
+    Unpackaged deployment (SPEC.md "Stack").
+
+    WindowsPackageType=None         : run without MSIX registration.
+    WindowsAppSDKSelfContained=true : carry the Windows App SDK binaries in the output
+                                      folder, so no separate runtime install is needed.
+    SelfContained=false             : dev builds use the shared .NET 9 runtime and stay
+                                      fast. Release publish flips this to true for the
+                                      fully standalone folder - see the PropertyGroup below
+                                      and the publish command in CLAUDE.md.
+
+    Turning this into an MSIX later means adding Package.appxmanifest plus logo assets and
+    flipping WindowsPackageType/EnableMsixTooling. No source changes: nothing in the app
+    calls a packaged-only API without an unpackaged fallback.
+  -->
+  <PropertyGroup>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>false</SelfContained>
+    <EnableMsixTooling>false</EnableMsixTooling>
+  </PropertyGroup>
+
+  <!--
+    MVVMTK0045 asks for [ObservableProperty] on partial properties instead of fields,
+    because field-generated properties are not NativeAOT-safe in WinRT scenarios.
+    Two reasons this is suppressed rather than followed:
+      1. We do not publish with NativeAOT (PublishAot is never set), so the marshalling
+         concern does not apply to this app.
+      2. CommunityToolkit.Mvvm 8.4.2's ObservablePropertyGenerator silently emits nothing
+         for partial properties under Roslyn 4.14 here - [RelayCommand] generates fine on
+         the same types - so following the advice does not currently compile.
+    Revisit when the toolkit is next upgraded; see CLAUDE.md "Known deviations".
+  -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="WinUIEx" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Launcher.Core\Launcher.Core.csproj" />
+  </ItemGroup>
+
+</Project>
