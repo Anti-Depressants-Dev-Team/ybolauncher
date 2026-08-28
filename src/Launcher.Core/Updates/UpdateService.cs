@@ -25,6 +25,15 @@ public sealed class UpdateService : IUpdateService, IDisposable
     /// <summary>GitHub refuses requests without one.</summary>
     private const string UserAgent = "YboLauncher";
 
+    /// <summary>
+    /// 1 MB. The default 80 KB means far more round trips through the socket and the file
+    /// stream than a 60 MB installer needs.
+    /// </summary>
+    private const int DownloadBufferBytes = 1024 * 1024;
+
+    /// <summary>A check is a small request; a download is not, and is not capped.</summary>
+    private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(20);
+
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly ILogger<UpdateService> _logger;
@@ -39,7 +48,9 @@ public sealed class UpdateService : IUpdateService, IDisposable
         CurrentVersion = currentVersion ?? ReadCurrentVersion();
         _ownsHttp = handler is null;
         _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
-        _http.Timeout = TimeSpan.FromSeconds(20);
+        // No client-wide timeout: it would also cap the download, and a 60 MB installer on
+        // a slow line is not a hung request. The check applies its own below.
+        _http.Timeout = Timeout.InfiniteTimeSpan;
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue(UserAgent, CurrentVersion.ToString()));
 
@@ -74,8 +85,11 @@ public sealed class UpdateService : IUpdateService, IDisposable
     {
         try
         {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(CheckTimeout);
+
             using HttpResponseMessage response = await _http
-                .GetAsync(LatestReleaseUrl, cancellationToken)
+                .GetAsync(LatestReleaseUrl, timeout.Token)
                 .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
@@ -84,9 +98,14 @@ public sealed class UpdateService : IUpdateService, IDisposable
                     string.Create(CultureInfo.CurrentCulture, $"GitHub answered {(int)response.StatusCode}."));
             }
 
-            string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            string json = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
 
             return Parse(json, CurrentVersion, InstallKind);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Our own timeout, not the caller giving up.
+            return UpdateCheckResult.Failed("GitHub did not answer in time.");
         }
         catch (OperationCanceledException)
         {
@@ -204,10 +223,17 @@ public sealed class UpdateService : IUpdateService, IDisposable
             string temporary = destination + ".part";
 
             await using (Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-            await using (FileStream file = File.Create(temporary))
+            await using (var file = new FileStream(
+                temporary,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                DownloadBufferBytes,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                byte[] buffer = new byte[81920];
+                byte[] buffer = new byte[DownloadBufferBytes];
                 long copied = 0;
+                double lastReported = 0;
                 int read;
 
                 while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
@@ -215,9 +241,20 @@ public sealed class UpdateService : IUpdateService, IDisposable
                     await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
                     copied += read;
 
-                    if (total is > 0)
+                    if (total is not > 0)
                     {
-                        progress?.Report(Math.Min(1.0, (double)copied / total.Value));
+                        continue;
+                    }
+
+                    double fraction = Math.Min(1.0, (double)copied / total.Value);
+
+                    // Reporting every chunk means thousands of updates marshalled to the
+                    // UI thread for a download this size, which slows the download itself
+                    // down. A percent at a time is all anyone can read anyway.
+                    if (fraction - lastReported >= 0.01 || fraction >= 1.0)
+                    {
+                        lastReported = fraction;
+                        progress?.Report(fraction);
                     }
                 }
             }

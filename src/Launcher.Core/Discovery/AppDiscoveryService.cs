@@ -26,6 +26,8 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
     /// <summary>Serializes scans so a rescan cannot interleave with one already running.</summary>
     private readonly SemaphoreSlim _scanLock = new(1, 1);
 
+    private readonly string _buildVersion;
+
     private List<AppEntry> _entries = [];
 
     public AppDiscoveryService(
@@ -34,7 +36,8 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
         StoragePaths paths,
         ISettingsService settings,
         JunkFilter? filter = null,
-        ILogger<AppDiscoveryService>? logger = null)
+        ILogger<AppDiscoveryService>? logger = null,
+        string? buildVersion = null)
     {
         _sources = sources?.ToArray() ?? [];
         _storage = storage;
@@ -42,6 +45,20 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
         _settings = settings;
         _filter = filter ?? new JunkFilter();
         _logger = logger ?? NullLogger<AppDiscoveryService>.Instance;
+        _buildVersion = buildVersion ?? CurrentBuildVersion();
+    }
+
+    /// <summary>The running build, stamped into the catalog it writes.</summary>
+    private static string CurrentBuildVersion()
+    {
+        try
+        {
+            return System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
+        }
+        catch (Exception)
+        {
+            return "unknown";
+        }
     }
 
     public IReadOnlyList<AppEntry> Entries => _entries;
@@ -63,6 +80,21 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
 
         _entries = catalog.Entries;
         EntriesChanged?.Invoke(this, EventArgs.Empty);
+
+        // Show what was cached either way, so the window is never empty while a scan runs.
+        if (!string.Equals(catalog.BuiltByVersion, _buildVersion, StringComparison.Ordinal))
+        {
+            // Discovery rules change between releases - what counts as a duplicate, what
+            // counts as a game - and a catalog written by the old build would keep serving
+            // the old answers until something else happened to trigger a scan. Reporting
+            // the cache as unusable is what makes an update take effect on first run.
+            _logger.LogInformation(
+                "The catalog was built by {Old}, this is {New}: rescanning.",
+                catalog.BuiltByVersion ?? "an older build",
+                _buildVersion);
+
+            return false;
+        }
 
         _logger.LogInformation("Loaded {Count} cached entries.", _entries.Count);
         return true;
@@ -263,6 +295,7 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
         var catalog = new AppCatalog
         {
             LastScanUtc = DateTimeOffset.UtcNow,
+            BuiltByVersion = _buildVersion,
             Entries = _entries,
         };
 

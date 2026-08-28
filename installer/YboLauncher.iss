@@ -91,7 +91,17 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Start {#AppName}"; Flags: nowait postinstall skipifsilent
 
+; The launcher updates itself by running this silently, and a silent install skips the
+; postinstall step above, so it has to bring the app back itself.
+Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: WantsRelaunch
+
 [Code]
+{ True when started as "setup.exe /relaunch=1", which is how the launcher updates itself. }
+function WantsRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
 const
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
 

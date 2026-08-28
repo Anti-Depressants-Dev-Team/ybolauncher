@@ -117,6 +117,14 @@ Sources implement `IAppSource` and are run concurrently by `AppDiscoveryService`
 then filters, deduplicates, reconciles against the existing catalog, and saves `apps.json`.
 A source that throws is logged and skipped; it never costs the other sources their results.
 
+
+**A new build rescans on first run.** The catalog records the version that wrote it, and a
+catalog written by a different build is reported as unusable so a scan runs immediately.
+Discovery rules change between releases - what counts as a duplicate, what counts as a game
+- and without this an update appears to do nothing at all: the app loads the old catalog,
+shows the old answers, and only picks up the new rules when an install or uninstall
+happens to trigger a scan. The cached entries are still shown while that scan runs, because
+an empty window is worse than a stale one for the few seconds it takes.
 **Threading.** `IShellLink` and the shell image factory are apartment-threaded COM. The
 whole Start Menu walk therefore runs on one dedicated STA thread (`StaThread.RunAsync`).
 On a thread pool thread — which is MTA — every call would cross an apartment boundary
@@ -487,6 +495,17 @@ sent but the request - and takes two things from it: a version and a download li
 that fails comes back as text rather than an exception, because a machine with no network
 is ordinary rather than an error anyone needs to deal with. The startup check is fired
 without being awaited, so a slow or unreachable network never holds up the window.
+
+**Speed matters more than ceremony.** The HTTP client has no overall timeout - that would
+cap the download as well, and a 60 MB installer on a slow line is not a hung request - so
+the check applies its own 20 seconds and the download is left uncapped. Progress is
+reported a percent at a time rather than per chunk, because thousands of updates marshalled
+to the UI thread slow the download that is producing them. The installer then runs
+`/SILENT /NORESTART /relaunch=1`: the user agreed by pressing Install, so clicking through a
+wizard to reach the same place is just waiting. `/relaunch` is our own switch, checked in
+the .iss, and exists because a silent install skips the installer's own "run when finished"
+step - without it the launcher would vanish mid-update. Measured end to end: nine seconds
+from launching the installer to the app being back on screen.
 
 **Nothing downloads on its own.** The startup check only says a release exists; the user
 decides in Settings. That is a deliberate line: an app that silently fetches 60 MB is an

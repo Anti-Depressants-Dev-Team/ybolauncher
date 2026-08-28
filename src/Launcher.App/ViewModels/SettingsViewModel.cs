@@ -684,9 +684,13 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
             }
 
-            UpdateStatus = "Starting the installer...";
+            UpdateStatus = "Installing...";
 
-            if (!TryOpen(installer))
+            // Silent, because the user already agreed by pressing Install - clicking
+            // through a wizard to reach the same place is just waiting. /relaunch=1 is our
+            // own switch, and brings the app back afterwards since a silent install skips
+            // the installer's own "run when finished" step.
+            if (!TryStart(installer, "/SILENT /NORESTART /relaunch=1"))
             {
                 UpdateStatus = "The installer could not be started. It is at " + installer;
                 CanInstallUpdate = true;
@@ -741,6 +745,27 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         _ = TryOpen(_paths.Root);
+    }
+
+    /// <summary>Runs a program with arguments, unlike <see cref="TryOpen"/> which opens one.</summary>
+    private static bool TryStart(string path, string arguments)
+    {
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                Arguments = arguments,
+                UseShellExecute = true,
+            });
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not start {path}: {ex}");
+            return false;
+        }
     }
 
     private static bool TryOpen(string target)
