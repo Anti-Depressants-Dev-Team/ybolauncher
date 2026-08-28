@@ -217,6 +217,14 @@ DI registration, nothing else.
 - **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
   launch their executable directly; the other two go through their launcher's protocol.
 
+
+**Some games are not in any library.** Prism Launcher, Lunar Client and the other Minecraft
+launchers install like ordinary desktop software: a Start Menu shortcut and nothing else,
+so the only thing that finds them is the Start Menu walk, which cannot tell a game from a
+text editor. `GameApps` is a list of known executable and display names that marks those
+entries as games so they reach the Games tab. It is a list rather than a heuristic on
+purpose - guessing at what a game looks like would put a text editor in the Games tab,
+where it is obviously wrong and the user cannot correct it.
 **Launching** prefers the launcher's protocol (`steam://rungameid/…`,
 `com.epicgames.launcher://…`, `uplay://…`, `origin2://…`, `amazon-games://play/…`) because
 it is what starts the launcher's own overlay, cloud saves and DRM. The install path is
@@ -299,7 +307,8 @@ revert on the next rebuild.
 and OR-ed across a merge - not `Source`, which after a merge names whichever discovery
 route won, and for a game that also has a Start Menu shortcut is routinely the shortcut.
 Selecting on `Source` put only the stores whose games have no shortcut in the tab. The
-first scan that finds anything in a game launcher creates a tab with id `games`, and later scans add newly installed titles to it. After that
+first scan that finds anything in a game launcher creates a tab with id `games`, and
+later scans add newly installed titles to it. After that
 it is an ordinary tab: rename it, move it, drag things in and out. Two pieces of state in
 `tabs.json` keep it from fighting the user - `SeenGameIds` records what it has already
 offered, so a game dragged out stays out while a new one still arrives, and
@@ -396,6 +405,17 @@ least one modifier — registering a bare key would swallow it system-wide.
 **Off by default.** A global hotkey takes a combination away from every other app, so it is
 opt-in rather than something that happens on first run.
 
+
+**Exit has three steps and a backstop.** `Window.Close()` is not enough on its own: WinUI
+does not reliably act on it once the window has been hidden to the tray, which is exactly
+the state Exit is reached from, and the result was a tray menu item that did nothing. So
+`RequestExit` closes the window, then calls `Application.Current.Exit()`, then schedules
+`Environment.Exit(0)` two seconds later in case neither took. Every document is written on
+a debounce well under a second, so nothing is in flight by then, and a launcher that cannot
+be quit is worse than one that ends abruptly. Disposing the tray icon is wrapped in a
+`try`, for the same reason: a ghost icon is a blemish, an app that will not quit is a
+fault. Settings carries the same command, because the tray icon can be buried in the
+notification overflow where it is hard to reach at all.
 **Tray icon** lives in the window's XAML tree so its context menu inherits a `XamlRoot`.
 That means a minimized start still has to `Activate()` before hiding, because WinUI does
 not build a window's content until it is activated.
@@ -407,9 +427,9 @@ the app, which happens when the folder is moved; re-enabling repairs it. The tog
 the registry rather than settings.json, so it reflects reality if the entry is removed
 outside the app.
 
-**Exit** is only on the tray menu once close-to-tray is on. `WindowService.RequestExit`
-sets a flag the `AppWindow.Closing` handler checks, and the tray icon is disposed first or
-it lingers in the notification area as a ghost until hovered.
+**Exit** sets a flag the `AppWindow.Closing` handler checks, so the close button hides to
+the tray while Exit really exits. The tray icon is disposed first or it lingers in the
+notification area as a ghost until hovered.
 
 ## Hardening
 
@@ -436,6 +456,28 @@ This paid for itself immediately — see the PRI note below.
 inside SPEC.md's one-second target. The catalog loads from `apps.json` and icons decode
 lazily as tiles scroll into view, so the count of installed apps barely moves the number.
 
+
+## Updates
+
+`UpdateService` reads the GitHub releases feed anonymously over HTTPS - no token, nothing
+sent but the request - and takes two things from it: a version and a download link. A check
+that fails comes back as text rather than an exception, because a machine with no network
+is ordinary rather than an error anyone needs to deal with. The startup check is fired
+without being awaited, so a slow or unreachable network never holds up the window.
+
+**Nothing downloads on its own.** The startup check only says a release exists; the user
+decides in Settings. That is a deliberate line: an app that silently fetches 60 MB is an
+app that surprises people on a metered connection.
+
+**How the copy was installed decides what it is offered.** The setup .exe leaves its
+uninstaller beside the app, which is what distinguishes an installed copy from an unzipped
+one. An installed copy is offered the setup and hands over to it, then quits so the files
+being replaced are not locked. An unzipped copy is offered the release page instead:
+nothing should overwrite a folder the user arranged themselves.
+
+Versions are compared as three components with any pre-release suffix dropped, so the tag
+`v0.4` and an assembly version of `0.4.0.0` are the same version rather than an endless
+update prompt.
 ## Licence and CI
 
 MIT, in `LICENSE`. `Directory.Build.props` carries the matching `Copyright`, so the two
@@ -611,6 +653,7 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IStartupService` | `StartupService` (HKCU Run key) |
 | `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |
 | `IConfigArchiveService` | `ConfigArchiveService` (export/import zip) |
+| `IUpdateService` | `UpdateService` (GitHub releases feed) |
 | `ITabService` | `TabService` |
 | `ISearchService` | `SearchService` (`FuzzyMatcher` is static) |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |

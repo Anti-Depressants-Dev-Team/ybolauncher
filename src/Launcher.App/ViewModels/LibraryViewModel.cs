@@ -10,6 +10,7 @@ using Launcher.Core.Models;
 using Launcher.Core.Search;
 using Launcher.Core.Services;
 using Launcher.Core.Tabs;
+using Launcher.Core.Updates;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -39,6 +40,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     private readonly ISearchService _search;
     private readonly IWindowService _windows;
     private readonly IAppWatcherService _watcher;
+    private readonly IUpdateService _updates;
     private readonly UserEntryFactory _userEntries;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _saveTimer;
@@ -74,7 +76,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         UserEntryFactory userEntries,
         ISearchService search,
         IWindowService windows,
-        IAppWatcherService watcher)
+        IAppWatcherService watcher,
+        IUpdateService updates)
     {
         _discovery = discovery;
         _tabs = tabs;
@@ -86,6 +89,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         _search = search;
         _windows = windows;
         _watcher = watcher;
+        _updates = updates;
 
         _searchCurrentTabOnly = settings.Current.SearchCurrentTabOnly;
 
@@ -155,6 +159,42 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         // Started only after the first load: an installer running during startup would
         // otherwise queue a rescan on top of the one already in flight.
         _watcher.StartWatching();
+
+        // Deliberately last and deliberately not awaited: a slow or unreachable network
+        // must never hold up the window.
+        _ = CheckForUpdatesAsync();
+    }
+
+    /// <summary>
+    /// Mentions a new release once, in the InfoBar. Nothing is downloaded here - Settings
+    /// is where the user decides.
+    /// </summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        if (!_settings.Current.CheckForUpdates)
+        {
+            return;
+        }
+
+        try
+        {
+            UpdateCheckResult result = await _updates.CheckAsync();
+
+            if (result.Update is { } update)
+            {
+                _dispatcher.TryEnqueue(() => ShowMessage(
+                    "Update available",
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        "Version {0} has been released. Settings has the button to install it.",
+                        update.Version),
+                    InfoBarSeverity.Informational));
+            }
+        }
+        catch (Exception)
+        {
+            // A check that could not be made is not worth telling anyone about.
+        }
     }
 
     [RelayCommand]

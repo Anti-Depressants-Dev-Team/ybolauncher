@@ -7,6 +7,7 @@ using Launcher.Core.Search;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
 using Launcher.Core.Tabs;
+using Launcher.Core.Updates;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Launcher.Core;
@@ -63,6 +64,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<UserEntryFactory>();
         services.AddSingleton<IAppWatcherService, AppWatcherService>();
         services.AddSingleton<IConfigArchiveService, ConfigArchiveService>();
+        services.AddSingleton<IUpdateService, UpdateService>();
 
         return services;
     }

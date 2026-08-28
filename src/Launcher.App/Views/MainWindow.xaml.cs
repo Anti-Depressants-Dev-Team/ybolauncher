@@ -257,8 +257,17 @@ public sealed partial class MainWindow : WindowEx
     private void OnTrayExit(object sender, RoutedEventArgs e)
     {
         // Dispose first: the tray icon outlives the window otherwise and leaves a ghost
-        // in the notification area until the user hovers it.
-        TrayIcon.Dispose();
+        // in the notification area until the user hovers it. It must never stop the exit
+        // though - a ghost icon is a blemish, an app that will not quit is a fault.
+        try
+        {
+            TrayIcon.Dispose();
+        }
+        catch (Exception)
+        {
+            // Nothing here is worth cancelling the exit for.
+        }
+
         _windows.RequestExit();
     }
 

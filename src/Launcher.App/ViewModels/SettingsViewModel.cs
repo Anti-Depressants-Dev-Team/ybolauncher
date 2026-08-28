@@ -10,6 +10,8 @@ using Launcher.Core.Models;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
 using Launcher.Core.Tabs;
+using Launcher.Core.Updates;
+using Microsoft.UI.Xaml;
 
 namespace Launcher.App.ViewModels;
 
@@ -26,6 +28,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private readonly IConfigArchiveService _archive;
     private readonly ITabService _tabs;
+    private readonly IWindowService _windows;
+    private readonly IUpdateService _updates;
+
+    /// <summary>The release found by the last check, waiting to be installed.</summary>
+    private UpdateInfo? _availableUpdate;
 
     [ObservableProperty]
     private int _selectedThemeIndex;
@@ -84,6 +91,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _archiveStatus = "Save your tabs, settings and icons to a zip, or restore them from one.";
 
+    [ObservableProperty]
+    private bool _checkForUpdatesOnStart;
+
+    [ObservableProperty]
+    private bool _isCheckingForUpdates;
+
+    [ObservableProperty]
+    private bool _canInstallUpdate;
+
+    [ObservableProperty]
+    private string _updateStatus = string.Empty;
+
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
     private bool _isInitializing;
 
@@ -97,7 +116,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         IHotkeyService hotkeys,
         IDialogService dialogs,
         IConfigArchiveService archive,
-        ITabService tabs)
+        ITabService tabs,
+        IWindowService windows,
+        IUpdateService updates)
     {
         _settings = settings;
         _theme = theme;
@@ -109,6 +130,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _dialogs = dialogs;
         _archive = archive;
         _tabs = tabs;
+        _windows = windows;
+        _updates = updates;
 
         VersionDescription = BuildVersionDescription();
 
@@ -149,6 +172,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             StartMinimized = current.StartMinimized;
             HotkeyEnabled = current.HotkeyEnabled;
             HotkeyText = current.Hotkey.ToString();
+            CheckForUpdatesOnStart = current.CheckForUpdates;
 
             // Read from the registry rather than from settings.json: the user may have
             // removed the Run entry outside the app, and the toggle should reflect reality.
@@ -223,7 +247,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Opens the Windows colour settings, where the accent actually lives.</summary>
     [RelayCommand]
-    private static void OpenWindowsColorSettings() => TryOpen("ms-settings:colors");
+    private static void OpenWindowsColorSettings() => _ = TryOpen("ms-settings:colors");
 
     // ---- discovery ----
 
@@ -498,6 +522,143 @@ public sealed partial class SettingsViewModel : ObservableObject
         ArchiveStatus = "Imported. Your previous configuration was saved to " + result.BackupPath;
     }
 
+    /// <summary>
+    /// Quits for real rather than hiding to the notification area. The tray menu has the
+    /// same command, but the tray icon can be buried in the overflow, so there is a way
+    /// out here too.
+    /// </summary>
+    [RelayCommand]
+    private void Exit() => _windows.RequestExit();
+
+
+    // ---- updates ----
+
+    /// <summary>Bound directly: this page has no converters, per MainWindow's pattern.</summary>
+    public Visibility CheckingVisibility =>
+        IsCheckingForUpdates ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility InstallVisibility =>
+        CanInstallUpdate ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnIsCheckingForUpdatesChanged(bool value) =>
+        OnPropertyChanged(nameof(CheckingVisibility));
+
+    partial void OnCanInstallUpdateChanged(bool value) =>
+        OnPropertyChanged(nameof(InstallVisibility));
+
+    partial void OnCheckForUpdatesOnStartChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.CheckForUpdates = value);
+        }
+    }
+
+    /// <summary>
+    /// Looks for a new release. A failed check is reported in the same line of text as a
+    /// successful one: no network is ordinary, not something to interrupt anyone over.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        IsCheckingForUpdates = true;
+        UpdateStatus = "Checking for updates...";
+        _availableUpdate = null;
+
+        try
+        {
+            UpdateCheckResult result = await _updates.CheckAsync();
+
+            if (result.Error is { } error)
+            {
+                UpdateStatus = error;
+                return;
+            }
+
+            if (result.Update is not { } update)
+            {
+                UpdateStatus = "You are on the latest version.";
+                return;
+            }
+
+            _availableUpdate = update;
+
+            UpdateStatus = _updates.InstallKind == InstallKind.Installed && update.DownloadUrl is not null
+                ? string.Format(
+                    CultureInfo.CurrentCulture,
+                    "Version {0} is available ({1:N0} MB).",
+                    update.Version,
+                    update.SizeBytes / (1024.0 * 1024.0))
+                : string.Format(
+                    CultureInfo.CurrentCulture,
+                    "Version {0} is available. This copy was unzipped rather than installed, so it cannot replace itself - the download page will open instead.",
+                    update.Version);
+
+            CanInstallUpdate = true;
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the update and hands over to its installer, then quits so the files it is
+    /// about to replace are not locked. An unzipped copy gets the release page instead:
+    /// nothing should overwrite a folder the user arranged themselves.
+    /// </summary>
+    [RelayCommand]
+    private async Task InstallUpdateAsync()
+    {
+        if (_availableUpdate is not { } update)
+        {
+            return;
+        }
+
+        if (_updates.InstallKind != InstallKind.Installed || update.DownloadUrl is null)
+        {
+            TryOpen(update.ReleaseUrl);
+            return;
+        }
+
+        IsCheckingForUpdates = true;
+        CanInstallUpdate = false;
+
+        try
+        {
+            var progress = new Progress<double>(fraction => UpdateStatus = string.Format(
+                CultureInfo.CurrentCulture,
+                "Downloading version {0}... {1:P0}",
+                update.Version,
+                fraction));
+
+            string? installer = await _updates.DownloadAsync(update, progress);
+
+            if (installer is null)
+            {
+                UpdateStatus = "The download failed. The release page has the file if you would rather fetch it yourself.";
+                CanInstallUpdate = true;
+                return;
+            }
+
+            UpdateStatus = "Starting the installer...";
+
+            if (!TryOpen(installer))
+            {
+                UpdateStatus = "The installer could not be started. It is at " + installer;
+                CanInstallUpdate = true;
+                return;
+            }
+
+            // The installer replaces the files this process is running from, so get out of
+            // its way rather than making it ask.
+            _windows.RequestExit();
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+        }
+    }
     /// <summary>Restores every preference. Apps, tabs and window geometry are untouched.</summary>
     [RelayCommand]
     private async Task ResetToDefaultsAsync()
@@ -536,10 +697,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             // Explorer will report the problem better than we can.
         }
 
-        TryOpen(_paths.Root);
+        _ = TryOpen(_paths.Root);
     }
 
-    private static void TryOpen(string target)
+    private static bool TryOpen(string target)
     {
         try
         {
@@ -548,11 +709,14 @@ public sealed partial class SettingsViewModel : ObservableObject
                 FileName = target,
                 UseShellExecute = true,
             });
+
+            return true;
         }
         catch (Exception ex)
         {
             // Opening a shell target is a convenience; never let it take the app down.
             Debug.WriteLine($"Could not open {target}: {ex}");
+            return false;
         }
     }
 }

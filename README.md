@@ -25,7 +25,9 @@ arrive through the package catalog. Switch the whole thing off in Settings if yo
 want it.
 
 **A Games tab you did not have to make.** The first scan that finds anything in a game
-launcher creates a Games tab and fills it in; later scans add newly installed titles. It is
+launcher creates a Games tab and fills it in; later scans add newly installed titles.
+Minecraft launchers such as Prism Launcher and Lunar Client count as games too, even
+though no store reports them. It is
 an ordinary tab after that - rename it, drag things in and out, or delete it, and deleting
 it means it stays gone.
 
@@ -34,6 +36,11 @@ yours: name it, pick an icon and an accent colour, drag apps in from Home, drag 
 and folders in from Explorer, reorder by dragging, and delete it without touching a single
 app.
 
+
+**It updates itself.** On startup it asks GitHub whether there is a newer release and says
+so in a line at the top of the window. Nothing downloads until you press Install in
+Settings, and an unzipped copy is sent to the download page rather than being overwritten
+where it stands. Turn the check off in Settings if you would rather not.
 **Search that gets out of the way.** Start typing anywhere. Matching is fzf-style — a
 subsequence match scored on word boundaries and consecutive runs, weighted by how often and
 how recently you launch things. `↓`/`↑` walk the results, `Enter` launches, `Esc` clears.

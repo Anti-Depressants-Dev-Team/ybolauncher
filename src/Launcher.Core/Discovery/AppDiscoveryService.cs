@@ -1,3 +1,4 @@
+using Launcher.Core.Discovery.Games;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
@@ -84,6 +85,13 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
                 FilterReason reason = _filter.Evaluate(entry);
                 entry.IsFiltered = reason != FilterReason.None;
                 entry.FilterReason = reason;
+
+                // Some games install like ordinary software, so the Start Menu walk is
+                // the only thing that finds them and cannot tell what they are.
+                if (!entry.IsGame && GameApps.IsKnownGame(entry))
+                {
+                    entry.IsGame = true;
+                }
             }
 
             List<AppEntry> merged = AppDeduplicator.Merge(discovered);

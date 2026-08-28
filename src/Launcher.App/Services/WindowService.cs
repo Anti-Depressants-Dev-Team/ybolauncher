@@ -56,7 +56,36 @@ public sealed class WindowService : IWindowService
     public void RequestExit()
     {
         IsExiting = true;
-        _window?.Close();
+
+        try
+        {
+            _window?.Close();
+        }
+        catch (Exception)
+        {
+            // Fall through to the harder ways out below.
+        }
+
+        // Close() alone is not enough for a window hidden in the tray: WinUI does not
+        // reliably act on it once the window has been hidden, which left Exit doing
+        // nothing at all. Exit() is the documented way to end a XAML application.
+        try
+        {
+            Application.Current?.Exit();
+        }
+        catch (Exception)
+        {
+            // Same.
+        }
+
+        // Last resort. Every document is written on a debounce well under a second, so by
+        // now nothing is in flight, and a launcher that cannot be quit is worse than one
+        // that ends abruptly.
+        _ = Task.Delay(TimeSpan.FromSeconds(2)).ContinueWith(
+            _ => Environment.Exit(0),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     /// <summary>

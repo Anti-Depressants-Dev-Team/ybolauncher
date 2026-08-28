@@ -309,6 +309,58 @@
                     Content="Reset" />
             </tk:SettingsCard>
 
+            <tk:SettingsCard
+                Description="Closes the launcher completely instead of hiding it in the notification area."
+                Header="Exit">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7E8;" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button
+                    AutomationProperties.Name="Exit the launcher"
+                    Command="{x:Bind ViewModel.ExitCommand}"
+                    Content="Exit" />
+            </tk:SettingsCard>
+
+            <!--  Updates  -->
+            <TextBlock
+                Margin="0,16,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Updates" />
+
+            <tk:SettingsCard
+                Description="Ask GitHub for a newer release when the launcher starts. Nothing is downloaded until you say so."
+                Header="Check for updates on startup">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE895;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Check for updates on startup"
+                    IsOn="{x:Bind ViewModel.CheckForUpdatesOnStart, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Description="{x:Bind ViewModel.UpdateStatus, Mode=OneWay}" Header="Updates">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE896;" />
+                </tk:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ProgressRing
+                        Width="20"
+                        Height="20"
+                        IsActive="{x:Bind ViewModel.IsCheckingForUpdates, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.CheckingVisibility, Mode=OneWay}" />
+                    <Button
+                        AutomationProperties.Name="Install the update"
+                        Command="{x:Bind ViewModel.InstallUpdateCommand}"
+                        Content="Install"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Visibility="{x:Bind ViewModel.InstallVisibility, Mode=OneWay}" />
+                    <Button
+                        AutomationProperties.Name="Check for updates"
+                        Command="{x:Bind ViewModel.CheckForUpdatesCommand}"
+                        Content="Check now" />
+                </StackPanel>
+            </tk:SettingsCard>
+
         </StackPanel>
     </ScrollViewer>
 
