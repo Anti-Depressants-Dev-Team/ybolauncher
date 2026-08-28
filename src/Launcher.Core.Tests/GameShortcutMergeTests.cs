@@ -17,6 +17,7 @@ public sealed class GameShortcutMergeTests
             DisplayName = name,
             OriginalName = name,
             Source = AppSource.GameLauncher,
+            IsGame = true,
             LaunchKind = launchUri is null ? LaunchKind.Executable : LaunchKind.Uri,
             LaunchUri = launchUri,
             TargetPath = executable,

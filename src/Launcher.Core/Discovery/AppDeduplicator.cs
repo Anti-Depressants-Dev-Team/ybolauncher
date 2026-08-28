@@ -84,8 +84,8 @@ public static class AppDeduplicator
 
         foreach (IGrouping<string, AppEntry> group in byName)
         {
-            List<AppEntry> games = [.. group.Where(e => e.Source == AppSource.GameLauncher)];
-            List<AppEntry> shortcuts = [.. group.Where(e => e.Source == AppSource.StartMenu)];
+            List<AppEntry> games = [.. group.Where(e => e.IsGame)];
+            List<AppEntry> shortcuts = [.. group.Where(e => !e.IsGame && e.Source == AppSource.StartMenu)];
 
             if (games.Count != 1 || shortcuts.Count == 0 || games.Count + shortcuts.Count != group.Count())
             {
@@ -171,6 +171,10 @@ public static class AppDeduplicator
             result.ShortcutPath ??= candidate.ShortcutPath;
             result.IconCacheFile ??= candidate.IconCacheFile;
         }
+
+        // A game that also has a Start Menu shortcut stays a game whichever route won,
+        // or it would fall out of the Games tab.
+        result.IsGame = group.Any(e => e.IsGame);
 
         result.OriginalName = ChooseName(group);
         result.DisplayName = result.OriginalName;

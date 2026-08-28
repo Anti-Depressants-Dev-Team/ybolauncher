@@ -201,12 +201,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         var known = _discovery.Entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
         bool changed = await _tabs.PruneAsync(known);
 
-        List<string> games =
-        [
-            .. _discovery.Entries
-                .Where(e => e.Source == AppSource.GameLauncher)
-                .Select(e => e.Id),
-        ];
+        List<string> games = [.. _discovery.Entries.Where(e => e.IsGame).Select(e => e.Id)];
 
         changed |= await _tabs.SyncGamesTabAsync(games);
 

@@ -31,6 +31,19 @@ public sealed class HoYoPlayLibrary : IGameLibrary
         ("NAP.exe", "Zenless Zone Zero"),
     ];
 
+    /// <summary>
+    /// Executables that are the launcher rather than a game. HoYoPlay records its own
+    /// install path beside the games', so without this the launcher becomes a tile in the
+    /// Games tab.
+    /// </summary>
+    private static readonly string[] LauncherExecutables =
+    [
+        "launcher.exe",
+        "HYP.exe",
+        "HoYoPlay.exe",
+        "miHoYoLauncher.exe",
+    ];
+
     /// <summary>Where HoYoPlay itself records install paths.</summary>
     private static readonly string[] LauncherKeys =
     [
@@ -192,7 +205,7 @@ public sealed class HoYoPlayLibrary : IGameLibrary
 
         string? executable = FindGameExecutable(folder);
 
-        if (executable is null)
+        if (executable is null || IsLauncher(executable))
         {
             return null;
         }
@@ -258,6 +271,14 @@ public sealed class HoYoPlayLibrary : IGameLibrary
 
         // A game this build has never heard of still deserves a tile.
         return GameExecutables.FindBest(folder, SafeFolderName(folder));
+    }
+
+    /// <summary>True when the executable found is the launcher rather than a game.</summary>
+    private static bool IsLauncher(string executablePath)
+    {
+        string name = Path.GetFileName(executablePath);
+
+        return LauncherExecutables.Any(e => string.Equals(name, e, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The published name for a known executable, or null for anything else.</summary>

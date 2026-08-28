@@ -199,7 +199,10 @@ DI registration, nothing else.
   before HoYoPlay existed has only the uninstall entry — and duplicates collapse on the
   executable. Names come from the executable rather than the folder, which is named after
   the build ("Genshin Impact game") and differs between the Chinese and global clients
-  (`YuanShen.exe` and `GenshinImpact.exe` are the same game). These titles launch by
+  (`YuanShen.exe` and `GenshinImpact.exe` are the same game). HoYoPlay records its own
+  install path beside the games', so an executable named like the launcher is rejected -
+  the name check alone missed it, because the HYP key supplies a path and no name at all.
+  These titles launch by
   executable: there is no documented protocol for starting one, and the game brings up its
   own updater and sign-in anyway.
 - **Riot Games** installs one client for every game: `RiotClientServices.exe` starts a
@@ -292,8 +295,11 @@ and `LibraryViewModel.IsSyncingTabs`, which suppress write-back during our own c
 manual reorder switches the tab to `SortMode.Manual`, or the new order would silently
 revert on the next rebuild.
 
-**The Games tab makes itself.** The first scan that finds anything in a game launcher
-creates a tab with id `games`, and later scans add newly installed titles to it. After that
+**The Games tab makes itself.** Membership is `AppEntry.IsGame`, set by the game source
+and OR-ed across a merge - not `Source`, which after a merge names whichever discovery
+route won, and for a game that also has a Start Menu shortcut is routinely the shortcut.
+Selecting on `Source` put only the stores whose games have no shortcut in the tab. The
+first scan that finds anything in a game launcher creates a tab with id `games`, and later scans add newly installed titles to it. After that
 it is an ordinary tab: rename it, move it, drag things in and out. Two pieces of state in
 `tabs.json` keep it from fighting the user - `SeenGameIds` records what it has already
 offered, so a game dragged out stays out while a new one still arrives, and

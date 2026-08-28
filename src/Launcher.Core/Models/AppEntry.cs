@@ -56,6 +56,14 @@ public sealed class AppEntry
     public bool IsHidden { get; set; }
 
     /// <summary>
+    /// True when a game launcher reported this entry, whatever it ended up being launched
+    /// by. This is what the Games tab is built from - not <see cref="Source"/>, which after
+    /// a merge names whichever discovery route won, and for a game that also has a Start
+    /// Menu shortcut is routinely the shortcut.
+    /// </summary>
+    public bool IsGame { get; set; }
+
+    /// <summary>
     /// True when the junk filter rejected this entry. Kept in the catalog rather than
     /// dropped, so "show filtered entries" can reveal it without a rescan.
     /// </summary>
@@ -88,6 +96,7 @@ public sealed class AppEntry
         }
 
         Source = scanned.Source;
+        IsGame = scanned.IsGame;
         LaunchKind = scanned.LaunchKind;
         TargetPath = scanned.TargetPath;
         LaunchUri = scanned.LaunchUri;

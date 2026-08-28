@@ -121,6 +121,7 @@ public sealed class GameLauncherAppSource : IAppSource
                 DisplayName = game.Name,
                 OriginalName = game.Name,
                 Source = AppSource.GameLauncher,
+                IsGame = true,
                 LaunchKind = hasProtocol ? LaunchKind.Uri : LaunchKind.Executable,
                 LaunchUri = game.LaunchUri,
                 TargetPath = target,
