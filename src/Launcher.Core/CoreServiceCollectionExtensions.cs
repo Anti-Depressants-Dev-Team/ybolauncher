@@ -2,6 +2,7 @@ using Launcher.Core.Discovery;
 using Launcher.Core.Icons;
 using Launcher.Core.Interop;
 using Launcher.Core.Launching;
+using Launcher.Core.Search;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
 using Launcher.Core.Tabs;
@@ -41,6 +42,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<ITabService, TabService>();
+        services.AddSingleton<ISearchService, SearchService>();
         services.AddSingleton<UserEntryFactory>();
 
         return services;

@@ -9,7 +9,11 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
 
-    <Grid>
+    <Grid x:Name="RootGrid" CharacterReceived="OnCharacterReceived">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="F" Invoked="OnFocusSearchRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="K" Invoked="OnFocusSearchRequested" Modifiers="Control" />
+        </Grid.KeyboardAccelerators>
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -53,16 +57,36 @@
                     Text="{x:Bind ViewModel.Title, Mode=OneWay}" />
             </StackPanel>
 
-            <AutoSuggestBox
-                x:Name="TitleBarSearchBox"
+            <!--
+                A plain TextBox rather than AutoSuggestBox: AutoSuggestBox consumes Enter,
+                Escape and the arrow keys for its own suggestion list, and SPEC.md gives
+                all four of those jobs to the results list instead.
+            -->
+            <Grid
                 Grid.Column="1"
                 Width="420"
                 MaxWidth="520"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                AutomationProperties.Name="Search apps"
-                PlaceholderText="{x:Bind ViewModel.SearchPlaceholder, Mode=OneWay}"
-                QueryIcon="Find" />
+                VerticalAlignment="Center">
+
+                <TextBox
+                    x:Name="TitleBarSearchBox"
+                    Padding="12,5,36,6"
+                    AutomationProperties.Name="Search apps"
+                    PreviewKeyDown="OnSearchBoxKeyDown"
+                    PlaceholderText="{x:Bind ViewModel.SearchPlaceholder, Mode=OneWay}"
+                    TextChanged="OnSearchTextChanged" />
+
+                <FontIcon
+                    Margin="0,0,12,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AccessibilityView="Raw"
+                    FontSize="14"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE721;"
+                    IsHitTestVisible="False" />
+            </Grid>
         </Grid>
 
         <Grid Grid.Row="1">
@@ -94,7 +118,8 @@
                     TabCloseRequested="OnTabCloseRequested"
                     TabItemsChanged="OnTabItemsChanged"
                     TabItemsSource="{x:Bind Library.Tabs}"
-                    TabWidthMode="SizeToContent">
+                    TabWidthMode="SizeToContent"
+                    Visibility="{x:Bind Library.TabContentVisibility, Mode=OneWay}">
 
                     <TabView.TabItemTemplate>
                         <DataTemplate x:DataType="vm:TabViewModel">
@@ -184,6 +209,11 @@
                         </StackPanel>
                     </TabView.TabStripFooter>
                 </TabView>
+
+                <!-- Replaces the tab surface while a query is active; Esc returns. -->
+                <ctrl:SearchResultsView
+                    Grid.Row="1"
+                    Visibility="{x:Bind Library.SearchVisibility, Mode=OneWay}" />
 
                 <TextBlock
                     Grid.Row="2"

@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 4 (Tabs) complete.** See "Phase status" at the bottom.
+**Current state: Phase 5 (Search) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -193,6 +193,35 @@ and `LibraryViewModel.IsSyncingTabs`, which suppress write-back during our own c
 manual reorder switches the tab to `SortMode.Manual`, or the new order would silently
 revert on the next rebuild.
 
+## Search
+
+Two layers, deliberately separated. `FuzzyMatcher` answers "how well does this pattern fit
+this text?" and knows nothing about apps. `SearchService` turns that into a rank, folding
+in where the match starts, how long the name is, and how the app is actually used.
+
+**Matching** is fzf-style: subsequence required, with bonuses for word boundaries,
+camelCase humps and consecutive characters, and penalties for gaps. Alignment is chosen by
+dynamic programming, not greedily — for "st" in "Visual Studio" the first `s` that fits is
+in "Vi**s**ual", but the right answer is "**St**udio".
+
+One deliberate deviation from fzf: `BoundaryGapRefund` partly refunds the gap cost when the
+character after a gap starts a word. Skipping whole words to match an acronym is a
+different intent from skipping letters inside one, and fzf charges both the same.
+
+**Ranking** adds three things the match score cannot express:
+
+- *Where the match starts.* "Advanced **V**s **S**ettings" actually earns a slightly higher
+  raw score for "vs" than "Visual Studio Code" — two initials, short gap — so the SPEC.md
+  requirement that Visual Studio Code win depends entirely on preferring a match at the
+  start of the name. That case is a test.
+- *Exact and prefix bonuses.* Typing an app's whole name is unambiguous intent.
+- *Usage,* capped at `MaxUsageBoost`. Frequency is logarithmic and recency decays
+  exponentially, and the cap means usage breaks ties between plausible matches without ever
+  overturning a clearly better one.
+
+The executable's file name is searched as a secondary field behind a penalty, so "devenv"
+finds Visual Studio without outranking anything whose visible name matches.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -252,6 +281,13 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
   `Launcher.App.ViewModels.AppTileViewModel`. `AutomationProperties.Name` on the template
   root is not enough on its own — the container is a separate element. Verified with UI
   Automation, not by assumption.
+- **`AutoSuggestBox` swallows Enter, Escape and the arrow keys** for its own suggestion
+  list, so the title bar search box is a plain `TextBox`. Even then, `TextBox` marks the
+  arrow keys handled during its own focus navigation, so the search box uses the tunneling
+  **`PreviewKeyDown`** rather than `KeyDown` — a bubbling handler never sees Down/Up.
+- **A `TwoWay` binding on `ListView.SelectedIndex` fights list repopulation.** Clearing the
+  items resets `SelectedIndex` to -1, which the binding writes straight back over the view
+  model. `SearchResultsView` pushes selection by hand behind a re-entrancy guard instead.
 - XAML event handlers **cannot be `static`** — the generated code binds them through an
   instance reference and fails with CS0176.
 - **Compiled-binding converters do not work in a XAML file whose root is a `Window`.** The
@@ -272,16 +308,14 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | 2. Discovery | **Done** — Start Menu + package catalog, dedupe, junk filter, icon cache |
 | 3. Home tab | **Done** — virtualized grid, tiles, launching, context menu, InfoBar |
 | 4. Tabs | **Done** — create/rename/reorder/delete, drag-and-drop, Explorer drop |
-| 5. Search | Not started |
+| 5. Search | **Done** — fzf-style matcher, ranked results, full keyboard flow |
 | 6. Polish | Not started |
 | 7. System integration | Not started |
 | 8. Hardening | Not started |
 
 ### Registered services
 
-Only services with a real implementation are in the container. `ISearchService` is
-**deliberately absent** rather than bound to a do-nothing placeholder; it arrives with
-Phase 5.
+Every service interface now has a real implementation; nothing is bound to a placeholder.
 
 | Interface | Implementation |
 | --- | --- |
@@ -292,6 +326,7 @@ Phase 5.
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
 | `ILaunchService` | `LaunchService` |
 | `ITabService` | `TabService` |
+| `ISearchService` | `SearchService` (`FuzzyMatcher` is static) |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |
 | `IDialogService` | `DialogService` (app layer — needs `XamlRoot` and the HWND) |
 | `StoragePaths`, `ShellLinkResolver`, `JunkFilter`, `UserEntryFactory` | concrete singletons |

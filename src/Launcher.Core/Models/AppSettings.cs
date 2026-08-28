@@ -44,6 +44,12 @@ public sealed class AppSettings : IVersionedDocument
     /// </summary>
     public bool ShowHiddenEntries { get; set; }
 
+    /// <summary>
+    /// Limit search to the selected tab. Off by default: SPEC.md says search covers all
+    /// tabs unless the user narrows it.
+    /// </summary>
+    public bool SearchCurrentTabOnly { get; set; }
+
     /// <summary>Creates an independent copy, used to diff or roll back pending edits.</summary>
     public AppSettings Clone() => new()
     {
@@ -55,6 +61,7 @@ public sealed class AppSettings : IVersionedDocument
         ScanPackagedApps = ScanPackagedApps,
         ShowFilteredEntries = ShowFilteredEntries,
         ShowHiddenEntries = ShowHiddenEntries,
+        SearchCurrentTabOnly = SearchCurrentTabOnly,
         Window = Window.Clone(),
     };
 }

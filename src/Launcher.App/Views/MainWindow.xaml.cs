@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Launcher.App.Controls;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
@@ -9,11 +10,13 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Graphics;
+using VirtualKey = Windows.System.VirtualKey;
 using WinUIEx;
 
 namespace Launcher.App.Views;
@@ -54,6 +57,8 @@ public sealed partial class MainWindow : WindowEx
         // container mid-construction.
         dialogs.Attach(this);
 
+        Library.PropertyChanged += OnLibraryPropertyChanged;
+
         Title = AppInfo.ProductName;
 
         // Custom title bar: content is drawn under the caption area and AppTitleBar
@@ -91,6 +96,105 @@ public sealed partial class MainWindow : WindowEx
     public ShellViewModel ViewModel { get; }
 
     public LibraryViewModel Library { get; }
+
+    // ---- search ----
+
+    /// <summary>
+    /// The box and the view model are kept in step by hand rather than with a two-way
+    /// binding, which on a TextBox commits only on lost focus - far too late for
+    /// search-as-you-type. The value comparison in <see cref="OnLibraryPropertyChanged"/>
+    /// is what stops the two from ping-ponging.
+    /// </summary>
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        Library.SearchQuery = TitleBarSearchBox.Text;
+    }
+
+    private void OnLibraryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Mirrors programmatic changes - Esc, or launching a result - back into the box.
+        if (e.PropertyName == nameof(LibraryViewModel.SearchQuery)
+            && !string.Equals(TitleBarSearchBox.Text, Library.SearchQuery, StringComparison.Ordinal))
+        {
+            TitleBarSearchBox.Text = Library.SearchQuery;
+        }
+    }
+
+    private void OnFocusSearchRequested(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        FocusSearchBox();
+    }
+
+    /// <summary>
+    /// Typing anywhere jumps into the search box, the way the Start menu does. Only
+    /// printable characters count, and only when the user is not already typing into
+    /// something - a rename dialog must keep its own keystrokes.
+    /// </summary>
+    private void OnCharacterReceived(UIElement sender, CharacterReceivedRoutedEventArgs args)
+    {
+        char character = args.Character;
+
+        if (char.IsControl(character) || char.IsWhiteSpace(character) || ViewModel.IsSettingsOpen)
+        {
+            return;
+        }
+
+        if (Content?.XamlRoot is null
+            || FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox or AutoSuggestBox)
+        {
+            return;
+        }
+
+        FocusSearchBox();
+
+        TitleBarSearchBox.Text += character;
+        TitleBarSearchBox.SelectionStart = TitleBarSearchBox.Text.Length;
+
+        args.Handled = true;
+    }
+
+    /// <summary>
+    /// Tunneling PreviewKeyDown rather than KeyDown: TextBox marks the arrow keys handled
+    /// as part of its own focus navigation, so a bubbling handler never sees them.
+    /// </summary>
+    private void OnSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case VirtualKey.Down:
+                e.Handled = true;
+                Library.MoveResultSelection(1);
+                break;
+
+            case VirtualKey.Up:
+                e.Handled = true;
+                Library.MoveResultSelection(-1);
+                break;
+
+            case VirtualKey.Enter:
+                e.Handled = true;
+                _ = Library.LaunchSelectedResultAsync();
+                break;
+
+            case VirtualKey.Escape:
+                e.Handled = true;
+                Library.ClearSearch();
+                TitleBarSearchBox.Text = string.Empty;
+
+                // Hand focus back to the content so arrow keys drive the grid again.
+                Tabs.Focus(FocusState.Programmatic);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private void FocusSearchBox()
+    {
+        TitleBarSearchBox.Focus(FocusState.Programmatic);
+    }
 
     // ---- tabs ----
 

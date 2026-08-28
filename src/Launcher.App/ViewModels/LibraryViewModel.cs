@@ -7,6 +7,7 @@ using Launcher.Core.Discovery;
 using Launcher.Core.Icons;
 using Launcher.Core.Launching;
 using Launcher.Core.Models;
+using Launcher.Core.Search;
 using Launcher.Core.Services;
 using Launcher.Core.Tabs;
 using Microsoft.UI.Dispatching;
@@ -35,6 +36,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     private readonly ILaunchService _launch;
     private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
+    private readonly ISearchService _search;
     private readonly UserEntryFactory _userEntries;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _saveTimer;
@@ -67,7 +69,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         ILaunchService launch,
         ISettingsService settings,
         IDialogService dialogs,
-        UserEntryFactory userEntries)
+        UserEntryFactory userEntries,
+        ISearchService search)
     {
         _discovery = discovery;
         _tabs = tabs;
@@ -76,6 +79,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         _settings = settings;
         _dialogs = dialogs;
         _userEntries = userEntries;
+        _search = search;
+
+        _searchCurrentTabOnly = settings.Current.SearchCurrentTabOnly;
 
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
@@ -112,6 +118,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     partial void OnSelectedTabChanged(TabViewModel? value)
     {
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(SearchScopeLabel));
 
         if (value is not null)
         {
@@ -431,6 +438,118 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
             hidden);
     }
 
+    // ---- search ----
+
+    /// <summary>Results for the current query, best first. Empty when search is inactive.</summary>
+    public ObservableCollection<SearchResultViewModel> SearchResults { get; } = [];
+
+    [ObservableProperty]
+    private string _searchQuery = string.Empty;
+
+    [ObservableProperty]
+    private int _selectedResultIndex = -1;
+
+    [ObservableProperty]
+    private bool _searchCurrentTabOnly;
+
+    public bool IsSearchActive => !string.IsNullOrWhiteSpace(SearchQuery);
+
+    /// <summary>Visibility rather than bool - see <see cref="ScanningVisibility"/>.</summary>
+    public Visibility SearchVisibility => IsSearchActive ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility TabContentVisibility => IsSearchActive ? Visibility.Collapsed : Visibility.Visible;
+
+    public string SearchSummary => SearchResults.Count switch
+    {
+        0 => "No matches",
+        1 => "1 match",
+        _ => string.Format(CultureInfo.CurrentCulture, "{0} matches", SearchResults.Count),
+    };
+
+    public string SearchScopeLabel => SearchCurrentTabOnly && SelectedTab is not null
+        ? "In " + SelectedTab.Name
+        : "All tabs";
+
+    partial void OnSearchQueryChanged(string value) => RunSearch();
+
+    partial void OnSearchCurrentTabOnlyChanged(bool value)
+    {
+        _ = _settings.UpdateAsync(s => s.SearchCurrentTabOnly = value);
+        OnPropertyChanged(nameof(SearchScopeLabel));
+        RunSearch();
+    }
+
+    private void RunSearch()
+    {
+        IEnumerable<AppEntry> candidates = SearchCurrentTabOnly && SelectedTab is not null
+            ? SelectedTab.Items.Select(tile => tile.Entry)
+            : VisibleEntries();
+
+        IReadOnlyList<SearchResult> results = _search.Search(SearchQuery, candidates);
+
+        SearchResults.Clear();
+        foreach (SearchResult result in results)
+        {
+            SearchResults.Add(new SearchResultViewModel(result, _icons));
+        }
+
+        // Pre-select the top hit so Enter launches it without any arrow keys.
+        SelectedResultIndex = SearchResults.Count > 0 ? 0 : -1;
+
+        OnPropertyChanged(nameof(IsSearchActive));
+        OnPropertyChanged(nameof(SearchVisibility));
+        OnPropertyChanged(nameof(TabContentVisibility));
+        OnPropertyChanged(nameof(SearchSummary));
+    }
+
+    /// <summary>Entries eligible for search, honouring the hidden and filtered toggles.</summary>
+    private IEnumerable<AppEntry> VisibleEntries()
+    {
+        AppSettings settings = _settings.Current;
+
+        return _discovery.Entries.Where(e =>
+            (settings.ShowHiddenEntries || !e.IsHidden)
+            && (settings.ShowFilteredEntries || !e.IsFiltered));
+    }
+
+    /// <summary>Moves the highlighted result, clamped rather than wrapping.</summary>
+    public void MoveResultSelection(int delta)
+    {
+        if (SearchResults.Count == 0)
+        {
+            return;
+        }
+
+        SelectedResultIndex = Math.Clamp(SelectedResultIndex + delta, 0, SearchResults.Count - 1);
+    }
+
+    /// <summary>Launches the highlighted result and dismisses the search.</summary>
+    public async Task LaunchSelectedResultAsync()
+    {
+        if (SelectedResultIndex < 0 || SelectedResultIndex >= SearchResults.Count)
+        {
+            return;
+        }
+
+        AppEntry entry = SearchResults[SelectedResultIndex].Entry;
+
+        ClearSearch();
+        await LaunchEntryAsync(entry, asAdministrator: false);
+    }
+
+    public async Task LaunchResultAsync(SearchResultViewModel result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        AppEntry entry = result.Entry;
+
+        ClearSearch();
+        await LaunchEntryAsync(entry, asAdministrator: false);
+    }
+
+    [RelayCommand]
+    public void ClearSearch() => SearchQuery = string.Empty;
+
     // ---- drag and drop ----
 
     /// <summary>
@@ -519,11 +638,18 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
 
     // ---- IAppTileHost ----
 
-    public async Task LaunchAsync(AppTileViewModel tile, bool asAdministrator)
+    public Task LaunchAsync(AppTileViewModel tile, bool asAdministrator)
     {
         ArgumentNullException.ThrowIfNull(tile);
+        return LaunchEntryAsync(tile.Entry, asAdministrator);
+    }
 
-        LaunchResult result = await _launch.LaunchAsync(tile.Entry, asAdministrator);
+    /// <summary>Shared by tiles and search results.</summary>
+    public async Task LaunchEntryAsync(AppEntry entry, bool asAdministrator)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        LaunchResult result = await _launch.LaunchAsync(entry, asAdministrator);
 
         if (result.Succeeded)
         {
@@ -538,7 +664,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         }
 
         ShowMessage(
-            "Could not start " + tile.DisplayName,
+            "Could not start " + entry.DisplayName,
             result.ErrorMessage ?? "Windows did not report a reason.",
             InfoBarSeverity.Error);
     }
