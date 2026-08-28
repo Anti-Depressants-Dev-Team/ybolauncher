@@ -147,8 +147,8 @@ target so the shortcut's own icon location and index are honoured.
 
 `GameLauncherAppSource` is one `IAppSource` over several `IGameLibrary` implementations:
 Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop), Battle.net, itch.io, Game
-Jolt, Amazon Games and Rockstar. Each reads the launcher's own bookkeeping rather than
-guessing at folders, and each returns an empty list when that launcher is absent — the
+Jolt, Amazon Games, Rockstar and HoYoPlay. Each reads the launcher's own bookkeeping
+rather than guessing at folders, and each returns an empty list when that launcher is absent — the
 normal case — so adding another store is a new small class and a DI registration, nothing
 else.
 
@@ -182,6 +182,15 @@ else.
   Those games launch by executable, which is what the launcher's own Start Menu shortcuts
   do — the game's boot executable brings up the launcher for sign-in by itself. Keys under
   the same root for the launcher, Social Club and redistributables are skipped.
+- **HoYoPlay** is read from two places at once: the install path HoYoPlay records per game
+  under `Cognosphere\HYP` (global) or `miHoYo\HYP` (Chinese client), and the ordinary
+  uninstall entries filtered by publisher. The overlap is deliberate — a game installed
+  before HoYoPlay existed has only the uninstall entry — and duplicates collapse on the
+  executable. Names come from the executable rather than the folder, which is named after
+  the build ("Genshin Impact game") and differs between the Chinese and global clients
+  (`YuanShen.exe` and `GenshinImpact.exe` are the same game). These titles launch by
+  executable: there is no documented protocol for starting one, and the game brings up its
+  own updater and sign-in anyway.
 - **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
   launch their executable directly; the other two go through their launcher's protocol.
 
@@ -189,9 +198,9 @@ else.
 `com.epicgames.launcher://…`, `uplay://…`, `origin2://…`, `amazon-games://play/…`) because
 it is what starts the launcher's own overlay, cloud saves and DRM. The install path is
 still kept on the entry: it is where the icon comes from and what makes "open file
-location" work. GOG, itch.io, Game Jolt and Rockstar have no such protocol worth going
-through - their games run directly, and for Rockstar the game's own executable is what
-brings the launcher up - so for those the executable is the launch target, and an install
+location" work. GOG, itch.io, Game Jolt, Rockstar and HoYoPlay have no such protocol worth
+going through - their games run directly, and for the last two the game's own executable
+is what brings the launcher up - so for those the executable is the launch target, and an install
 with no executable to find is skipped rather than shown as a tile that opens a folder.
 
 **Deduplication is free.** A game's Start Menu shortcut is a `.url` holding the same
@@ -205,7 +214,8 @@ duplicates.
 No game launcher is installed on the development machine, so this code is covered by
 fixture tests that write a real folder layout to disk - a Steam library in
 `GameLauncherAppSourceTests`, itch and Game Jolt installs in `IndieLauncherTests`, Amazon
-and Rockstar installs in `StoreLauncherTests` - rather than by a live scan. For the
+and Rockstar installs in `StoreLauncherTests`, HoYoverse build folders in
+`HoYoPlayLibraryTests` - rather than by a live scan. For the
 registry-based launchers only the entry-to-game step is covered that way; the registry walk
 itself needs an installed launcher. Every file name and data shape here comes from those
 clients' published behaviour rather than from a machine that has them, so each reader is

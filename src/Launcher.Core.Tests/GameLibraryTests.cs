@@ -159,6 +159,7 @@ public sealed class GameLibraryIntegrationTests
             new GameJoltLibrary(() => null),
             new AmazonGamesLibrary(),
             new RockstarLibrary(),
+            new HoYoPlayLibrary(),
         ];
 
         foreach (IGameLibrary library in libraries)

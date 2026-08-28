@@ -17,11 +17,11 @@ caches every icon. Newly installed apps appear on their own — a file watcher a
 package catalog tell it when something changed.
 
 **Your games too.** Steam, Epic, GOG, Ubisoft Connect, EA, Battle.net, itch.io, Game Jolt,
-Amazon Games and Rockstar libraries are read from each launcher's own records, so installed
-games appear alongside everything else and start through their launcher — overlay, cloud
-saves and all. Where a store has no launch protocol (GOG, itch.io, Game Jolt, Rockstar) the
-game runs directly. Xbox Game Pass titles arrive through the package catalog. Switch the
-whole thing off in Settings if you do not want it.
+Amazon Games, Rockstar and HoYoPlay libraries are read from each launcher's own records, so
+installed games appear alongside everything else and start through their launcher —
+overlay, cloud saves and all. Where a store has no launch protocol (GOG, itch.io, Game Jolt,
+Rockstar, HoYoPlay) the game runs directly. Xbox Game Pass titles arrive through the
+package catalog. Switch the whole thing off in Settings if you do not want it.
 
 **Tabs you arrange.** Home always holds every app and can't be deleted. Every other tab is
 yours: name it, pick an icon and an accent colour, drag apps in from Home, drag files
