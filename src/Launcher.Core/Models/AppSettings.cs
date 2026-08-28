@@ -30,6 +30,9 @@ public sealed class AppSettings : IVersionedDocument
     /// <summary>Scan the Store / MSIX package catalog.</summary>
     public bool ScanPackagedApps { get; set; } = true;
 
+    /// <summary>Scan Steam, Epic, GOG, Ubisoft Connect, EA and Battle.net libraries.</summary>
+    public bool ScanGameLaunchers { get; set; } = true;
+
     /// <summary>
     /// Show entries the junk filter rejected - uninstallers, documentation links, broken
     /// shortcuts. They stay in the catalog either way, so this needs no rescan.
@@ -88,6 +91,7 @@ public sealed class AppSettings : IVersionedDocument
         Backdrop = defaults.Backdrop;
         ScanStartMenu = defaults.ScanStartMenu;
         ScanPackagedApps = defaults.ScanPackagedApps;
+        ScanGameLaunchers = defaults.ScanGameLaunchers;
         ShowFilteredEntries = defaults.ShowFilteredEntries;
         ShowHiddenEntries = defaults.ShowHiddenEntries;
         SearchCurrentTabOnly = defaults.SearchCurrentTabOnly;
@@ -109,6 +113,7 @@ public sealed class AppSettings : IVersionedDocument
         LastActiveTabId = LastActiveTabId,
         ScanStartMenu = ScanStartMenu,
         ScanPackagedApps = ScanPackagedApps,
+        ScanGameLaunchers = ScanGameLaunchers,
         ShowFilteredEntries = ShowFilteredEntries,
         ShowHiddenEntries = ShowHiddenEntries,
         SearchCurrentTabOnly = SearchCurrentTabOnly,

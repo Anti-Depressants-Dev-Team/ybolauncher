@@ -138,7 +138,9 @@ public sealed partial class AppGridView : UserControl
 
         EmptyStateTitle.Text = tab.EmptyStateTitle;
         EmptyStateBody.Text = tab.EmptyStateBody;
-        EmptyStateGlyph.Glyph = tab.IsHome ? "" : "";
+        // Segoe Fluent Icons: AllApps for an empty Home, Add for an empty custom tab.
+        // Built from code points because an editor pass once ate the literal characters.
+        EmptyStateGlyph.Glyph = char.ConvertFromUtf32(tab.IsHome ? 0xE71D : 0xE710);
 
         // Home has nowhere to send the user; an empty custom tab does.
         EmptyStateAction.Visibility = tab.IsHome ? Visibility.Collapsed : Visibility.Visible;

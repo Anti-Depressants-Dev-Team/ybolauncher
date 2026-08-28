@@ -296,8 +296,11 @@ public sealed class TabServiceTests : IDisposable
     [Fact]
     public async Task TabsSurviveARoundTrip()
     {
+        // Tab glyphs are Segoe Fluent Icons characters, never emoji.
+        string glyph = TabGlyphs.All.First(g => g.Name == "Games").Glyph;
+
         TabService first = await LoadedAsync(NewService());
-        LauncherTab games = await first.CreateTabAsync("Games", "🎮", "#FF8800");
+        LauncherTab games = await first.CreateTabAsync("Games", glyph, "#FF8800");
         await first.AddEntriesAsync(games.Id, ["app-a", "app-b"]);
 
         TabService second = await LoadedAsync(NewService());
@@ -305,7 +308,7 @@ public sealed class TabServiceTests : IDisposable
         Assert.Equal(2, second.Tabs.Count);
         Assert.True(second.Tabs[0].IsHome);
         Assert.Equal("Games", second.Tabs[1].Name);
-        Assert.Equal("🎮", second.Tabs[1].Glyph);
+        Assert.Equal(glyph, second.Tabs[1].Glyph);
         Assert.Equal("#FF8800", second.Tabs[1].AccentColorHex);
         Assert.Equal(["app-a", "app-b"], second.Tabs[1].EntryIds);
     }

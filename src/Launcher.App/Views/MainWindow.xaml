@@ -192,7 +192,7 @@
                                             Spacing="8">
 
                                             <TextBlock
-                                                FontFamily="Segoe UI Emoji"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                                 Text="{x:Bind Glyph, Mode=OneWay}"
                                                 Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
 

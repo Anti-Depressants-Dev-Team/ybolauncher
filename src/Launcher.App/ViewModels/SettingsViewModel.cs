@@ -40,6 +40,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _scanPackagedApps;
 
     [ObservableProperty]
+    private bool _scanGameLaunchers;
+
+    [ObservableProperty]
     private bool _showFilteredEntries;
 
     [ObservableProperty]
@@ -136,6 +139,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             SelectedBackdropIndex = (int)current.Backdrop;
             ScanStartMenu = current.ScanStartMenu;
             ScanPackagedApps = current.ScanPackagedApps;
+            ScanGameLaunchers = current.ScanGameLaunchers;
             ShowFilteredEntries = current.ShowFilteredEntries;
             ShowHiddenEntries = current.ShowHiddenEntries;
             DefaultViewModeIndex = (int)current.DefaultViewMode;
@@ -236,6 +240,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (!_isInitializing)
         {
             _ = _settings.UpdateAsync(s => s.ScanPackagedApps = value);
+        }
+    }
+
+    partial void OnScanGameLaunchersChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.ScanGameLaunchers = value);
         }
     }
 

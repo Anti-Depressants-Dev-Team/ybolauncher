@@ -13,7 +13,11 @@ public sealed class LauncherTab
 
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>An emoji, or a Segoe Fluent Icons glyph. Null shows no icon.</summary>
+    /// <summary>
+    /// A monochrome Segoe Fluent Icons glyph from <see cref="TabGlyphs"/>. Null shows no
+    /// icon. Anything that is not a Fluent glyph is dropped on load - see
+    /// <c>TabService.Normalize</c>.
+    /// </summary>
     public string? Glyph { get; set; }
 
     /// <summary>Accent colour as <c>#RRGGBB</c>, or null to use the system accent.</summary>
@@ -65,9 +69,7 @@ public sealed class LauncherTab
         // Home starts alphabetical; the first manual drag switches it to Manual.
         SortMode = SortMode.Alphabetical,
 
-        // An emoji rather than a Segoe Fluent glyph, so one font renders every tab icon.
-        // Custom tabs use emoji, and mixing the two would need per-tab font switching.
-        Glyph = "\U0001F3E0",
+        Glyph = TabGlyphs.Home,
     };
 }
 

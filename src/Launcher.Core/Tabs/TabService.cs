@@ -60,6 +60,14 @@ public sealed class TabService : ITabService
             home.Name = "Home";
         }
 
+        // Tab icons used to be emoji. Anything that is not a Fluent glyph is migrated:
+        // Home gets its proper icon back, and a custom tab simply loses the emoji rather
+        // than rendering it as a missing-glyph box in the icon font.
+        if (!TabGlyphs.IsFluentGlyph(home.Glyph))
+        {
+            home.Glyph = TabGlyphs.Home;
+        }
+
         result.Add(home);
         seenIds.Add(home.Id);
 
@@ -78,6 +86,12 @@ public sealed class TabService : ITabService
             }
 
             tab.IsHome = false;
+
+            if (!TabGlyphs.IsFluentGlyph(tab.Glyph))
+            {
+                tab.Glyph = null;
+            }
+
             result.Add(tab);
         }
 
@@ -150,7 +164,10 @@ public sealed class TabService : ITabService
             return;
         }
 
-        tab.Glyph = NullIfBlank(glyph);
+        // Only a Fluent glyph is accepted, so nothing can reintroduce an emoji here.
+        string? candidate = NullIfBlank(glyph);
+        tab.Glyph = TabGlyphs.IsFluentGlyph(candidate) ? candidate : null;
+
         tab.AccentColorHex = NullIfBlank(accentColorHex);
 
         await CommitAsync(cancellationToken).ConfigureAwait(false);

@@ -10,14 +10,20 @@ prerequisites on the target machine.
 
 ## What it does
 
-**Finds everything by itself.** On first run it scans both Start Menu folders and the
-Store/MSIX package catalog, deduplicates the results down to one entry per app, filters out
-the clutter (uninstallers, readme links, dead shortcuts), and caches every icon. Newly
-installed apps appear on their own — a file watcher and the package catalog tell it when
-something changed.
+**Finds everything by itself.** On first run it scans both Start Menu folders, the
+Store/MSIX package catalog and your game launchers, deduplicates the results down to one
+entry per app, filters out the clutter (uninstallers, readme links, dead shortcuts), and
+caches every icon. Newly installed apps appear on their own — a file watcher and the
+package catalog tell it when something changed.
+
+**Your games too.** Steam, Epic, GOG, Ubisoft Connect, EA and Battle.net libraries are
+read from each launcher's own records, so installed games appear alongside everything
+else and start through their launcher — overlay, cloud saves and all. Xbox Game Pass
+titles arrive through the package catalog. Switch the whole thing off in Settings if you
+do not want it.
 
 **Tabs you arrange.** Home always holds every app and can't be deleted. Every other tab is
-yours: name it, give it an emoji and an accent colour, drag apps in from Home, drag files
+yours: name it, pick an icon and an accent colour, drag apps in from Home, drag files
 and folders in from Explorer, reorder by dragging, and delete it without touching a single
 app.
 
@@ -131,8 +137,6 @@ storage layer.
 
 ## Not implemented
 
-- **Steam, Epic and Xbox Game Pass discovery.** Specified as optional; the `IAppSource`
-  seam they would plug into exists.
 - **Section headers within a tab.** Grouping inside a single tab.
 - **MSIX packaging.** The project is structured so it can be added without source changes —
   add `Package.appxmanifest` and logo assets, then flip two properties.

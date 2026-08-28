@@ -2,7 +2,9 @@ using System.Globalization;
 using Launcher.Core.Models;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -262,12 +264,77 @@ public sealed class DialogService : IDialogService, IDisposable
             SelectionLength = name.Length,
         };
 
-        var glyphBox = new TextBox
+        string? chosenGlyph = TabGlyphs.IsFluentGlyph(glyph) ? glyph : null;
+        var glyphButtons = new List<ToggleButton>();
+
+        // A fixed picker rather than a free-text box: tab icons are monochrome Fluent
+        // glyphs, and letting anything be typed is what allowed emoji in the first place.
+        var glyphGrid = new Grid { ColumnSpacing = 4, RowSpacing = 4 };
+        const int GlyphColumns = 8;
+
+        for (int column = 0; column < GlyphColumns; column++)
         {
-            Text = glyph ?? string.Empty,
-            PlaceholderText = "Optional emoji, for example 🎮",
-            MaxLength = 8,
-        };
+            glyphGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        }
+
+        // "None" first, then every glyph in the set.
+        var options = new List<TabGlyph?> { null };
+        options.AddRange(TabGlyphs.All);
+
+        for (int i = 0; i < options.Count; i++)
+        {
+            TabGlyph? option = options[i];
+            int row = i / GlyphColumns;
+
+            if (glyphGrid.RowDefinitions.Count <= row)
+            {
+                glyphGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+
+            var button = new ToggleButton
+            {
+                Width = 40,
+                Height = 40,
+                Padding = new Thickness(0),
+                Tag = option?.Glyph,
+                IsChecked = option?.Glyph == chosenGlyph,
+                Content = option is null
+                    ? new FontIcon { Glyph = "", FontSize = 16 }
+                    : new FontIcon { Glyph = option.Glyph, FontSize = 16 },
+            };
+
+            AutomationProperties.SetName(button, option?.Name ?? "No icon");
+            ToolTipService.SetToolTip(button, option?.Name ?? "No icon");
+
+            button.Checked += (sender, _) =>
+            {
+                chosenGlyph = (string?)((ToggleButton)sender).Tag;
+
+                // Radio behaviour: a set of ToggleButtons is the only way to show the
+                // glyph itself as the choice, which RadioButtons cannot do.
+                foreach (ToggleButton other in glyphButtons)
+                {
+                    if (!ReferenceEquals(other, sender))
+                    {
+                        other.IsChecked = false;
+                    }
+                }
+            };
+
+            // Unchecking the current selection means "no icon" rather than nothing.
+            button.Unchecked += (sender, _) =>
+            {
+                if (chosenGlyph == (string?)((ToggleButton)sender).Tag)
+                {
+                    chosenGlyph = null;
+                }
+            };
+
+            Grid.SetRow(button, row);
+            Grid.SetColumn(button, i % GlyphColumns);
+            glyphGrid.Children.Add(button);
+            glyphButtons.Add(button);
+        }
 
         var colorBox = new ComboBox { MinWidth = 180 };
         foreach ((string presetName, string? hex) in AccentPresets)
@@ -285,7 +352,7 @@ public sealed class DialogService : IDialogService, IDisposable
         panel.Children.Add(new TextBlock { Text = "Name" });
         panel.Children.Add(nameBox);
         panel.Children.Add(new TextBlock { Text = "Icon", Margin = new Thickness(0, 8, 0, 0) });
-        panel.Children.Add(glyphBox);
+        panel.Children.Add(glyphGrid);
         panel.Children.Add(new TextBlock { Text = "Accent colour", Margin = new Thickness(0, 8, 0, 0) });
         panel.Children.Add(colorBox);
 
@@ -304,7 +371,7 @@ public sealed class DialogService : IDialogService, IDisposable
 
         string? chosenHex = (colorBox.SelectedItem as ComboBoxItem)?.Tag as string;
 
-        return new TabEdit(chosenName, NullIfBlank(glyphBox.Text), chosenHex);
+        return new TabEdit(chosenName, chosenGlyph, chosenHex);
     }
 
     public async Task<HotkeyBinding?> CaptureHotkeyAsync(HotkeyBinding current)

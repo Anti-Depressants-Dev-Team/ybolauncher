@@ -156,6 +156,7 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
     {
         AppSource.StartMenu => settings.ScanStartMenu,
         AppSource.Packaged => settings.ScanPackagedApps,
+        AppSource.GameLauncher => settings.ScanGameLaunchers,
         _ => false,
     };
 

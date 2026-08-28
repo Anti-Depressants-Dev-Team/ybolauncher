@@ -1,4 +1,5 @@
 using Launcher.Core.Discovery;
+using Launcher.Core.Discovery.Games;
 using Launcher.Core.Icons;
 using Launcher.Core.Interop;
 using Launcher.Core.Launching;
@@ -40,6 +41,15 @@ public static class CoreServiceCollectionExtensions
         // Order matters only for progress reporting; deduplication is order-independent.
         services.AddSingleton<IAppSource, StartMenuAppSource>();
         services.AddSingleton<IAppSource, PackagedAppSource>();
+
+        // Each launcher reads its own bookkeeping; adding another is a new IGameLibrary.
+        services.AddSingleton<IGameLibrary, SteamLibrary>();
+        services.AddSingleton<IGameLibrary, EpicLibrary>();
+        services.AddSingleton<IGameLibrary, GogLibrary>();
+        services.AddSingleton<IGameLibrary, UbisoftLibrary>();
+        services.AddSingleton<IGameLibrary, EaLibrary>();
+        services.AddSingleton<IGameLibrary, BattleNetLibrary>();
+        services.AddSingleton<IAppSource, GameLauncherAppSource>();
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<ITabService, TabService>();

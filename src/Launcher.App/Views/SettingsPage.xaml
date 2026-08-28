@@ -181,6 +181,17 @@
             </tk:SettingsCard>
 
             <tk:SettingsCard
+                Description="Read the Steam, Epic, GOG, Ubisoft, EA and Battle.net libraries for installed games."
+                Header="Game launchers">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7FC;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Scan game launchers"
+                    IsOn="{x:Bind ViewModel.ScanGameLaunchers, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
                 Description="Reveal uninstallers, documentation links and broken shortcuts. No rescan needed - they are always kept in the catalog."
                 Header="Show filtered entries">
                 <tk:SettingsCard.HeaderIcon>

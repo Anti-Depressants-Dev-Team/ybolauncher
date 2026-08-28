@@ -42,6 +42,9 @@ public enum AppSource
     Epic = 3,
     XboxGamePass = 4,
 
+    /// <summary>A game found through a launcher such as Steam, Epic, GOG or Ubisoft Connect.</summary>
+    GameLauncher = 6,
+
     /// <summary>Dragged in from Explorer by the user.</summary>
     UserAdded = 5,
 }

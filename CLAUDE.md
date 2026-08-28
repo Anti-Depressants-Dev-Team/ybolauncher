@@ -143,6 +143,45 @@ naturally invalidates its icon. Executables and shortcuts go through
 already a PNG and only needs copying. Icons are extracted from the `.lnk` rather than its
 target so the shortcut's own icon location and index are honoured.
 
+### Game launchers
+
+`GameLauncherAppSource` is one `IAppSource` over several `IGameLibrary` implementations:
+Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop) and Battle.net. Each reads
+the launcher's own bookkeeping rather than guessing at folders, and each returns an empty
+list when that launcher is absent — the normal case — so adding another store is a new
+small class and a DI registration, nothing else.
+
+- **Steam** parses `libraryfolders.vdf` for every library root (games are routinely spread
+  across drives) and one `appmanifest_*.acf` per app. `VdfParser` is a small, deliberately
+  lenient reader for Valve's KeyValues format: Steam can be mid-write when we read, so a
+  truncated file yields what was parsed rather than throwing. Only `StateFlags & 4`
+  (fully installed) counts, and the shared redistributables and Proton/Linux runtimes are
+  excluded by app id and name.
+- **Epic** reads `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item`, skipping
+  incomplete installs and anything not categorised as a game (the same folder tracks
+  engine installs and plugins).
+- **EA** reads the `.mfst` files under `%ProgramData%\Origin\LocalContent` and
+  `EA Desktop\LocalContent` and pulls the offer id out of their query string.
+- **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
+  launch their executable directly; the other two go through their launcher's protocol.
+
+**Launching** prefers the launcher's protocol (`steam://rungameid/…`,
+`com.epicgames.launcher://…`, `uplay://…`, `origin2://…`) because it is what starts the
+launcher's own overlay, cloud saves and DRM. The install path is still kept on the entry:
+it is where the icon comes from and what makes "open file location" work.
+
+**Deduplication is free.** A game's Start Menu shortcut is a `.url` holding the same
+protocol URI, so `AppIdentity` derives the same merge key from both and they collapse into
+one tile — the shortcut wins for its path, the library entry for its icon.
+
+**Xbox Game Pass is deliberately absent from this source.** Those titles install as MSIX
+packages and are already found by `PackagedAppSource`; a second source would only create
+duplicates.
+
+No game launcher is installed on the development machine, so this code is covered by
+fixture tests that write a real Steam folder layout to disk
+(`GameLauncherAppSourceTests`) rather than by a live scan.
+
 ## Launching
 
 `LaunchService` never throws — a failure is a `LaunchResult`, because SPEC.md requires an
@@ -192,7 +231,22 @@ only signal that distinguishes a user drag from a rebuild — hence `TabViewMode
 and `LibraryViewModel.IsSyncingTabs`, which suppress write-back during our own churn. A
 manual reorder switches the tab to `SortMode.Manual`, or the new order would silently
 revert on the next rebuild.
+**Tab icons are monochrome, never emoji.** A tab's glyph is one Segoe Fluent Icons
+character from the fixed set in `TabGlyphs`, chosen from a grid in the tab dialog — there
+is no free-text icon field, because a text field is what let emoji in originally. Emoji
+render as full-colour bitmaps that ignore the theme and sit at a different weight to every
+other icon in the window, and they show as a missing-glyph box when the surrounding font
+is the icon font. `TabGlyphs.IsFluentGlyph` is the single gate: `TabService.Normalize`
+rewrites Home's glyph and drops any other non-Fluent glyph on load, so tab files written
+by an older build migrate silently, and `SetAppearanceAsync` refuses one on the way in.
 
+This applies only to the launcher's *own* iconography. Icons extracted for a discovered
+app keep their real colours — that is the app's identity, not chrome.
+
+The glyph set is built from code points via `char.ConvertFromUtf32` rather than from
+literal characters in the source. Private-use characters do not survive every editing tool
+(see Gotchas), and a silently emptied string is a blank icon at runtime that no test
+catches.
 ## Search
 
 Two layers, deliberately separated. `FuzzyMatcher` answers "how well does this pattern fit
@@ -328,9 +382,6 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 
 ## Not built yet
 
-- **Steam, Epic and Xbox Game Pass discovery** (SPEC.md marks these optional, behind a
-  settings toggle). The `IAppSource` seam they would plug into exists and is already used
-  by two sources, so each is a self-contained addition.
 - **Section headers inside a tab** (SPEC.md "Views & layout"). User-created groups within a
   tab need a section model on `LauncherTab`, grouped item sources, and UI to create, rename
   and assign into them — comparable in size to the whole tab feature. Deferred rather than
@@ -357,6 +408,12 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 
 ## Gotchas hit so far
 
+- **Private-use characters get eaten by editing tools.** A `sed` pass over a source file
+  silently stripped the Segoe Fluent Icons characters out of two glyph literals, leaving
+  `IsHidden ? "" : ""`. It compiles, no test fails, and the icon is simply blank at
+  runtime. Anywhere a glyph is chosen in code it is now written as a code point —
+  `char.ConvertFromUtf32(0xE71C)` — and XAML uses `&#xE71C;`. `od -c` is the way to check
+  what is actually in the file; the terminal shows nothing either way.
 - `ColumnDefinition.Width` is a `GridLength`. Binding an `x:Double` resource to it compiles
   fine and then fails at runtime with `0x802B000A` (XAML parse error) — which surfaces as a
   bare `STATUS_STOWED_EXCEPTION` crash with no managed stack. If the app dies instantly on
@@ -433,7 +490,8 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `ISettingsService` | `SettingsService` |
 | `IIconService` | `IconService` |
 | `IAppDiscoveryService` | `AppDiscoveryService` |
-| `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
+| `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource`, `GameLauncherAppSource` |
+| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary` |
 | `ILaunchService` | `LaunchService` |
 | `IStartupService` | `StartupService` (HKCU Run key) |
 | `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |
