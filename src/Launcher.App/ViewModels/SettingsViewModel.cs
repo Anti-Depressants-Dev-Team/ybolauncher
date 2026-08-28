@@ -9,6 +9,7 @@ using Launcher.Core.Icons;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
+using Launcher.Core.Tabs;
 
 namespace Launcher.App.ViewModels;
 
@@ -23,6 +24,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IStartupService _startup;
     private readonly IHotkeyService _hotkeys;
     private readonly IDialogService _dialogs;
+    private readonly IConfigArchiveService _archive;
+    private readonly ITabService _tabs;
 
     [ObservableProperty]
     private int _selectedThemeIndex;
@@ -75,6 +78,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _iconCacheStatus = string.Empty;
 
+    [ObservableProperty]
+    private string _archiveStatus = "Save your tabs, settings and icons to a zip, or restore them from one.";
+
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
     private bool _isInitializing;
 
@@ -86,7 +92,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         IIconService icons,
         IStartupService startup,
         IHotkeyService hotkeys,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        IConfigArchiveService archive,
+        ITabService tabs)
     {
         _settings = settings;
         _theme = theme;
@@ -96,6 +104,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _startup = startup;
         _hotkeys = hotkeys;
         _dialogs = dialogs;
+        _archive = archive;
+        _tabs = tabs;
 
         VersionDescription = BuildVersionDescription();
 
@@ -409,6 +419,71 @@ public sealed partial class SettingsViewModel : ObservableObject
             CultureInfo.CurrentCulture,
             "Removed {0} cached icon(s). Rescan to rebuild them.",
             removed);
+    }
+
+    /// <summary>Writes settings, tabs, the catalog and the icon cache to one zip.</summary>
+    [RelayCommand]
+    private async Task ExportConfigurationAsync()
+    {
+        string suggested = string.Format(
+            CultureInfo.InvariantCulture,
+            "ybo-launcher-{0:yyyy-MM-dd}.zip",
+            DateTime.Now);
+
+        string? destination = await _dialogs.PickExportPathAsync(suggested);
+        if (destination is null)
+        {
+            return;
+        }
+
+        ArchiveStatus = await _archive.ExportAsync(destination)
+            ? "Exported to " + destination
+            : "Export failed. Check that the folder is writable.";
+    }
+
+    /// <summary>
+    /// Replaces everything from a zip, then reloads every service so the running app
+    /// reflects the imported configuration without a restart.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportConfigurationAsync()
+    {
+        string? source = await _dialogs.PickImportPathAsync();
+        if (source is null)
+        {
+            return;
+        }
+
+        bool confirmed = await _dialogs.ConfirmAsync(
+            "Import configuration?",
+            "This replaces your tabs, settings and app catalog. The current configuration is saved to a backup zip first, so you can undo this by importing that file.",
+            "Import");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        ImportResult result = await _archive.ImportAsync(source);
+
+        if (!result.Succeeded)
+        {
+            ArchiveStatus = "Import failed: " + result.Error;
+            return;
+        }
+
+        await _settings.LoadAsync();
+        await _tabs.LoadAsync();
+        await _discovery.LoadCachedAsync();
+
+        AppSettings current = _settings.Current;
+        _theme.ApplyTheme(current.Theme);
+        _theme.ApplyBackdrop(current.Backdrop);
+        _hotkeys.Apply(current.Hotkey, current.HotkeyEnabled);
+
+        ReloadFromSettings();
+
+        ArchiveStatus = "Imported. Your previous configuration was saved to " + result.BackupPath;
     }
 
     /// <summary>Restores every preference. Apps, tabs and window geometry are untouched.</summary>

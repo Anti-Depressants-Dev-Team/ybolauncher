@@ -99,11 +99,52 @@ public partial class App : Application
         return services.BuildServiceProvider();
     }
 
+    /// <summary>
+    /// Records the failure next to the user's settings before the process dies.
+    /// <para>
+    /// The exception is deliberately not swallowed: continuing after an unhandled XAML
+    /// exception means running in an unknown state, and a launcher that quietly corrupts a
+    /// layout is worse than one that stops. The log is what makes the crash diagnosable.
+    /// </para>
+    /// </summary>
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+        TryWriteCrashLog(e.Exception);
+    }
 
-        // Phase 8 replaces this with a crash log written next to the settings file.
-        // Until then, let the process fail loudly rather than continue in a broken state.
+    private static void TryWriteCrashLog(Exception exception)
+    {
+        try
+        {
+            StoragePaths paths = Services is null
+                ? StoragePaths.CreateDefault()
+                : Services.GetRequiredService<StoragePaths>();
+
+            Directory.CreateDirectory(paths.Root);
+
+            string path = Path.Combine(
+                paths.Root,
+                string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "crash-{0:yyyyMMdd-HHmmss}.log",
+                    DateTime.Now));
+
+            File.WriteAllText(
+                path,
+                string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0:u}{1}{2} {3}{1}{1}{4}",
+                    DateTimeOffset.Now,
+                    Environment.NewLine,
+                    AppInfo.ProductName,
+                    typeof(App).Assembly.GetName().Version,
+                    exception));
+        }
+        catch (Exception)
+        {
+            // Failing to write the log must not replace the original exception with a
+            // second, less useful one.
+        }
     }
 }

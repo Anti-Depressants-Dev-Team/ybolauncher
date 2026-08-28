@@ -38,6 +38,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     private readonly IDialogService _dialogs;
     private readonly ISearchService _search;
     private readonly IWindowService _windows;
+    private readonly IAppWatcherService _watcher;
     private readonly UserEntryFactory _userEntries;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _saveTimer;
@@ -72,7 +73,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         IDialogService dialogs,
         UserEntryFactory userEntries,
         ISearchService search,
-        IWindowService windows)
+        IWindowService windows,
+        IAppWatcherService watcher)
     {
         _discovery = discovery;
         _tabs = tabs;
@@ -83,6 +85,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         _userEntries = userEntries;
         _search = search;
         _windows = windows;
+        _watcher = watcher;
 
         _searchCurrentTabOnly = settings.Current.SearchCurrentTabOnly;
 
@@ -96,6 +99,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         _discovery.EntriesChanged += (_, _) => _dispatcher.TryEnqueue(RebuildAll);
         _settings.Changed += (_, _) => _dispatcher.TryEnqueue(RebuildAll);
         _tabs.TabsChanged += (_, _) => _dispatcher.TryEnqueue(SyncTabs);
+
+        // Fires on a background thread once a burst of installs or removals settles.
+        _watcher.ChangeDetected += (_, _) => _dispatcher.TryEnqueue(() => _ = RescanAsync());
     }
 
     public ObservableCollection<TabViewModel> Tabs { get; } = [];
@@ -140,10 +146,15 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         if (await _discovery.LoadCachedAsync())
         {
             await PruneTabsAsync();
-            return;
+        }
+        else
+        {
+            await RescanAsync();
         }
 
-        await RescanAsync();
+        // Started only after the first load: an installer running during startup would
+        // otherwise queue a rescan on top of the one already in flight.
+        _watcher.StartWatching();
     }
 
     [RelayCommand]

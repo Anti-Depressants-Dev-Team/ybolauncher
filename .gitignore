@@ -49,3 +49,6 @@ coverage*.xml
 Thumbs.db
 desktop.ini
 .DS_Store
+
+## Release publish output
+publish/

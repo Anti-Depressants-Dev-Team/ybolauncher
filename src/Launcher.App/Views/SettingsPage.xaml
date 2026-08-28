@@ -258,6 +258,22 @@
                 </tk:SettingsExpander.Items>
             </tk:SettingsExpander>
 
+            <tk:SettingsCard Description="{x:Bind ViewModel.ArchiveStatus, Mode=OneWay}" Header="Export and import">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8B5;" />
+                </tk:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button
+                        AutomationProperties.Name="Import a configuration archive"
+                        Command="{x:Bind ViewModel.ImportConfigurationCommand}"
+                        Content="Import..." />
+                    <Button
+                        AutomationProperties.Name="Export the configuration to a zip"
+                        Command="{x:Bind ViewModel.ExportConfigurationCommand}"
+                        Content="Export..." />
+                </StackPanel>
+            </tk:SettingsCard>
+
             <!--  About  -->
             <TextBlock
                 Margin="0,16,0,4"

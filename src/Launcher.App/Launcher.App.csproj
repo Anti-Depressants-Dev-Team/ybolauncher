@@ -68,9 +68,29 @@
     <ProjectReference Include="..\Launcher.Core\Launcher.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    dotnet publish drops the app's own resource index for an unpackaged WinUI build. It
+    lands in bin\ but never reaches the publish folder, and without it
+    Application.LoadComponent cannot find any compiled XAML - the app dies at the first
+    InitializeComponent with a bare XamlParseException. The build output runs fine, so
+    this only ever shows up in a published copy.
+  -->
+  <Target Name="PublishAppResourceIndex" BeforeTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup Condition="Exists('$(ProjectPriFullPath)')">
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)">
+        <RelativePath>$(TargetName).pri</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
-    <!-- Copied next to the exe so AppWindow.SetIcon and the tray icon can load it. -->
-    <Content Include="Assets\AppIcon.ico" />
+    <!--
+      Copied next to the exe so AppWindow.SetIcon can load it by path. Content alone is
+      not enough for an unpackaged build - without CopyToOutputDirectory the file is
+      packaged but never lands in the output folder.
+    -->
+    <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

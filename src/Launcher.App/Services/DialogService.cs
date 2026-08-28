@@ -428,6 +428,65 @@ public sealed class DialogService : IDialogService, IDisposable
         return [.. boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Id)];
     }
 
+    public async Task<string?> PickExportPathAsync(string suggestedName)
+    {
+        if (_window is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var picker = new FileSavePicker
+            {
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+                SuggestedFileName = suggestedName,
+            };
+
+            picker.FileTypeChoices.Add("Launcher configuration", [".zip"]);
+            InitializePicker(picker);
+
+            StorageFile? file = await picker.PickSaveFileAsync();
+            return file?.Path;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> PickImportPathAsync()
+    {
+        if (_window is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
+            picker.FileTypeFilter.Add(".zip");
+            InitializePicker(picker);
+
+            StorageFile? file = await picker.PickSingleFileAsync();
+            return file?.Path;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Unpackaged WinUI 3 pickers have no implicit parent window, so the HWND has to be
+    /// supplied or the pick throws.
+    /// </summary>
+    private void InitializePicker(object picker)
+    {
+        nint handle = WinRT.Interop.WindowNative.GetWindowHandle(_window!);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, handle);
+    }
+
     public async Task<bool> ConfirmAsync(string title, string message, string acceptButtonText)
     {
         var text = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 400 };

@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 7 (System integration) complete.** See "Phase status" at the bottom.
+**Current state: Phase 8 (Hardening) complete. All eight phases done.** See "Phase status" at the bottom.
 
 ---
 
@@ -282,6 +282,31 @@ outside the app.
 sets a flag the `AppWindow.Closing` handler checks, and the tray icon is disposed first or
 it lingers in the notification area as a ghost until hovered.
 
+## Hardening
+
+**Staying fresh.** `AppWatcherService` watches both Start Menu folders with a
+`FileSystemWatcher` and subscribes to `PackageCatalog` install/uninstall/update events.
+Both are noisy — an installer writes a folder of shortcuts in a burst — so changes are
+coalesced behind a 4-second settle timer and reported once. The watcher buffer is raised to
+64 KB because the default overflows on a busy install, and an overflow drops events
+silently; the error handler treats an overflow as a reason to rescan, which is exactly
+right since a rescan re-reads everything anyway.
+
+**Export and import.** `ConfigArchiveService` zips settings, tabs, the catalog and the icon
+cache. An import backs up what was there first, so a wrong archive is undoable by importing
+the backup. Entry paths are validated against zip-slip (`..`, absolute paths, drive
+letters) and the archive is refused outright if it does not contain a launcher document —
+a refused import writes nothing at all, not even a backup.
+
+**Crash log.** An unhandled XAML exception is written to `crash-<stamp>.log` beside the
+settings, then allowed to kill the process. Continuing after one means running in an
+unknown state, and a launcher that quietly corrupts a layout is worse than one that stops.
+This paid for itself immediately — see the PRI note below.
+
+**Cold start**, Release, warm cache: window visible ~400 ms, tiles on screen ~950 ms. Well
+inside SPEC.md's one-second target. The catalog loads from `apps.json` and icons decode
+lazily as tiles scroll into view, so the count of installed apps barely moves the number.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -303,6 +328,9 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 
 ## Not built yet
 
+- **Steam, Epic and Xbox Game Pass discovery** (SPEC.md marks these optional, behind a
+  settings toggle). The `IAppSource` seam they would plug into exists and is already used
+  by two sources, so each is a self-contained addition.
 - **Section headers inside a tab** (SPEC.md "Views & layout"). User-created groups within a
   tab need a section model on `LauncherTab`, grouped item sources, and UI to create, rename
   and assign into them — comparable in size to the whole tab feature. Deferred rather than
@@ -310,6 +338,9 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 - **Connected animation** from a tile into the properties dialog. `ContentDialog` builds its
   content before it opens, which makes the destination element awkward to hand to
   `ConnectedAnimation`. The other motion in SPEC.md is implemented.
+- **In-app accent override.** The launcher honours the Windows accent, which is what
+  SPEC.md requires; the Settings row links to the Windows colour page rather than offering
+  a picker that would need the whole accent brush ramp re-derived at runtime.
 
 ## Known deviations
 
@@ -360,6 +391,15 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
   model. `SearchResultsView` pushes selection by hand behind a re-entrancy guard instead.
 - XAML event handlers **cannot be `static`** — the generated code binds them through an
   instance reference and fails with CS0176.
+- **`dotnet publish` drops the app's own `.pri` for an unpackaged WinUI build.** It is
+  produced into `bin\` but never reaches the publish folder, and without it
+  `Application.LoadComponent` cannot find any compiled XAML — the app dies at the first
+  `InitializeComponent` with a bare `XamlParseException` and exit code `0xC000027B`. The
+  build output runs fine, so this only appears in a *published* copy. Fixed by the
+  `PublishAppResourceIndex` target in `Launcher.App.csproj`. **Always smoke-test the
+  publish output, not just the build.**
+- **`Content` alone does not copy a file to the output folder** in an unpackaged build; it
+  needs `CopyToOutputDirectory` as well, or `AppWindow.SetIcon` finds nothing at runtime.
 - **Compiled-binding converters do not work in a XAML file whose root is a `Window`.** The
   generated code calls `SetConverterLookupRoot(this)`, which needs a `FrameworkElement`;
   a `Window` is not one, and it fails with a confusing CS1503 inside `MainWindow.g.cs`.
@@ -381,7 +421,7 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | 5. Search | **Done** — fzf-style matcher, ranked results, full keyboard flow |
 | 6. Polish | **Done** — view modes, sizing, sorting, motion, keyboard, accessibility |
 | 7. System integration | **Done** — tray, global hotkey, run at startup, full settings |
-| 8. Hardening | Not started |
+| 8. Hardening | **Done** — live refresh, export/import, crash log, perf pass, README |
 
 ### Registered services
 
@@ -396,6 +436,8 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
 | `ILaunchService` | `LaunchService` |
 | `IStartupService` | `StartupService` (HKCU Run key) |
+| `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |
+| `IConfigArchiveService` | `ConfigArchiveService` (export/import zip) |
 | `ITabService` | `TabService` |
 | `ISearchService` | `SearchService` (`FuzzyMatcher` is static) |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |

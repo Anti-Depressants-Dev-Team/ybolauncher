@@ -51,6 +51,12 @@ public interface IDialogService
     /// nothing was selected or the dialog was cancelled.
     /// </summary>
     Task<IReadOnlyList<string>> ManageHiddenAppsAsync(IReadOnlyList<AppEntry> hidden);
+
+    /// <summary>Where to write a configuration export. Null when cancelled.</summary>
+    Task<string?> PickExportPathAsync(string suggestedName);
+
+    /// <summary>Which configuration archive to import. Null when cancelled.</summary>
+    Task<string?> PickImportPathAsync();
 }
 
 /// <summary>Result of the tab editor.</summary>

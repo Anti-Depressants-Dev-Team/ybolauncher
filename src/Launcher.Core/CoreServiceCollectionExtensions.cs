@@ -45,6 +45,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ITabService, TabService>();
         services.AddSingleton<ISearchService, SearchService>();
         services.AddSingleton<UserEntryFactory>();
+        services.AddSingleton<IAppWatcherService, AppWatcherService>();
+        services.AddSingleton<IConfigArchiveService, ConfigArchiveService>();
 
         return services;
     }
