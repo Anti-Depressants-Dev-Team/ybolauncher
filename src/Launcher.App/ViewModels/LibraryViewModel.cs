@@ -145,7 +145,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
 
         if (await _discovery.LoadCachedAsync())
         {
-            await PruneTabsAsync();
+            await ReconcileTabsAsync();
         }
         else
         {
@@ -179,7 +179,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         try
         {
             await _discovery.ScanAsync(progress);
-            await PruneTabsAsync();
+            await ReconcileTabsAsync();
         }
         catch (Exception ex)
         {
@@ -191,12 +191,26 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         }
     }
 
-    /// <summary>An uninstalled app must not leave a hole in the tabs that referenced it.</summary>
-    private async Task PruneTabsAsync()
+    /// <summary>
+    /// Brings the tabs back in line with the catalog after a scan: an uninstalled app must
+    /// not leave a hole in the tabs that referenced it, and a newly found game belongs in
+    /// the Games tab.
+    /// </summary>
+    private async Task ReconcileTabsAsync()
     {
         var known = _discovery.Entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        bool changed = await _tabs.PruneAsync(known);
 
-        if (await _tabs.PruneAsync(known))
+        List<string> games =
+        [
+            .. _discovery.Entries
+                .Where(e => e.Source == AppSource.GameLauncher)
+                .Select(e => e.Id),
+        ];
+
+        changed |= await _tabs.SyncGamesTabAsync(games);
+
+        if (changed)
         {
             RebuildAll();
         }

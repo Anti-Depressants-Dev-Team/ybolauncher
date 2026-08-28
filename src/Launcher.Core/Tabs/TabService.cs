@@ -12,7 +12,11 @@ public sealed class TabService : ITabService
     private readonly StoragePaths _paths;
     private readonly ILogger<TabService> _logger;
 
+    private readonly HashSet<string> _seenGameIds = new(StringComparer.Ordinal);
+
     private List<LauncherTab> _tabs = [LauncherTab.CreateHome()];
+
+    private bool _gamesTabRemoved;
 
     public TabService(IStorageService storage, StoragePaths paths, ILogger<TabService>? logger = null)
     {
@@ -34,6 +38,14 @@ public sealed class TabService : ITabService
             .ConfigureAwait(false);
 
         _tabs = Normalize(stored?.Tabs);
+        _gamesTabRemoved = stored?.GamesTabRemoved ?? false;
+
+        _seenGameIds.Clear();
+
+        foreach (string id in stored?.SeenGameIds ?? [])
+        {
+            _seenGameIds.Add(id);
+        }
 
         _logger.LogInformation("Loaded {Count} tabs.", _tabs.Count);
         TabsChanged?.Invoke(this, EventArgs.Empty);
@@ -100,7 +112,12 @@ public sealed class TabService : ITabService
 
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        var document = new TabLayout { Tabs = _tabs };
+        var document = new TabLayout
+        {
+            Tabs = _tabs,
+            GamesTabRemoved = _gamesTabRemoved,
+            SeenGameIds = [.. _seenGameIds],
+        };
 
         try
         {
@@ -173,6 +190,61 @@ public sealed class TabService : ITabService
         await CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+
+    public async Task<bool> SyncGamesTabAsync(
+        IReadOnlyList<string> gameEntryIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(gameEntryIds);
+
+        // Deleting the tab is an answer: it does not come back on the next scan.
+        if (_gamesTabRemoved || gameEntryIds.Count == 0)
+        {
+            return false;
+        }
+
+        // Only games never offered before are added, so one the user drags out of the tab
+        // stays out while a newly installed one still arrives.
+        List<string> unseen = [.. gameEntryIds.Where(id => !string.IsNullOrWhiteSpace(id) && _seenGameIds.Add(id))];
+
+        LauncherTab? games = Find(LauncherTab.GamesId);
+        bool created = false;
+
+        if (games is null)
+        {
+            games = new LauncherTab
+            {
+                Id = LauncherTab.GamesId,
+                Name = "Games",
+                Glyph = TabGlyphs.Games,
+                SortMode = SortMode.Alphabetical,
+            };
+
+            _tabs.Add(games);
+            created = true;
+        }
+
+        foreach (string id in unseen)
+        {
+            if (!games.EntryIds.Contains(id, StringComparer.Ordinal))
+            {
+                games.EntryIds.Add(id);
+            }
+        }
+
+        if (!created && unseen.Count == 0)
+        {
+            return false;
+        }
+
+        _logger.LogInformation(
+            "{Action} the Games tab with {Count} game(s).",
+            created ? "Created" : "Updated",
+            unseen.Count);
+
+        await CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
     public async Task<bool> DeleteTabAsync(string tabId, CancellationToken cancellationToken = default)
     {
         LauncherTab? tab = Find(tabId);
@@ -180,6 +252,13 @@ public sealed class TabService : ITabService
         if (tab is null || !tab.CanBeDeleted)
         {
             return false;
+        }
+
+        // Deleting the automatic Games tab is a decision, so the next scan must not put
+        // it straight back.
+        if (tab.Id == LauncherTab.GamesId)
+        {
+            _gamesTabRemoved = true;
         }
 
         // Only the membership list goes; the apps themselves are untouched and stay on Home.

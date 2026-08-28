@@ -9,6 +9,13 @@ public sealed class LauncherTab
     /// <summary>Reserved id of the Home tab. Home is unique and cannot be recreated.</summary>
     public const string HomeId = "home";
 
+    /// <summary>
+    /// Reserved id of the automatic Games tab, created the first time a scan finds games
+    /// in an installed launcher. It is an ordinary tab otherwise: it can be renamed,
+    /// moved, or deleted, and deleting it stops it coming back.
+    /// </summary>
+    public const string GamesId = "games";
+
     public string Id { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
@@ -80,4 +87,16 @@ public sealed class TabLayout : IVersionedDocument
     public int SchemaVersion { get; set; } = 1;
 
     public List<LauncherTab> Tabs { get; set; } = [];
+
+    /// <summary>
+    /// Set when the user deletes the automatic Games tab, so it is not recreated by the
+    /// next scan. Deleting it is an answer, not an accident.
+    /// </summary>
+    public bool GamesTabRemoved { get; set; }
+
+    /// <summary>
+    /// Games already offered to the Games tab. A game the user takes out of the tab stays
+    /// out, while a newly installed one is still added.
+    /// </summary>
+    public List<string> SeenGameIds { get; set; } = [];
 }

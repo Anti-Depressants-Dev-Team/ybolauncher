@@ -133,10 +133,14 @@ public sealed class IconService : IIconService
                 return cacheKey;
             }
 
+            // A packaged app logo is padded by its author - commonly the glyph occupies a
+            // third of the image - so it is cropped to its artwork like every other icon.
+            byte[] content = IconTrimmer.TrimPng(imageBytes) ?? imageBytes;
+
             // Same temp-then-swap approach as the JSON documents: a half-written PNG in
             // the cache would render as a broken tile forever.
             string temporary = destination + ".tmp";
-            await File.WriteAllBytesAsync(temporary, imageBytes, cancellationToken).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(temporary, content, cancellationToken).ConfigureAwait(false);
             File.Move(temporary, destination, overwrite: true);
 
             return cacheKey;
@@ -263,7 +267,11 @@ public sealed class IconService : IIconService
                     PixelFormat.Format32bppPArgb,
                     pinned.AddrOfPinnedObject());
 
-                bitmap.Save(destination, ImageFormat.Png);
+                // Crop the padding so the artwork, not the canvas, is what the tile
+                // scales - otherwise a padded icon looks small beside one that fills.
+                using Bitmap? trimmed = IconTrimmer.Trim(bitmap);
+
+                (trimmed ?? bitmap).Save(destination, ImageFormat.Png);
             }
             finally
             {

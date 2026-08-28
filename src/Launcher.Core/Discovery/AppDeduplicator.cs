@@ -47,8 +47,84 @@ public static class AppDeduplicator
             merged.Add(MergeGroup(key, groups[key]));
         }
 
-        return merged;
+        return CollapseGameShortcuts(merged);
     }
+
+    /// <summary>
+    /// Collapses a game found in a launcher's library with that launcher's own Start Menu
+    /// shortcut for it.
+    /// <para>
+    /// A store whose games launch through a protocol needs nothing here: the shortcut is a
+    /// <c>.url</c> holding the same URI, so both sides already produce the same merge key.
+    /// The stores whose games run directly - HoYoPlay and Rockstar especially - write a
+    /// shortcut that goes through the launcher's own executable instead, which is a
+    /// different target and so a different key, and the game would appear twice.
+    /// </para>
+    /// <para>
+    /// Matching is on the display name, which for a game is distinctive enough to be
+    /// trustworthy. It is deliberately narrow: exactly one library entry and only Start
+    /// Menu shortcuts beside it, so two genuinely separate installs of the same title are
+    /// left alone.
+    /// </para>
+    /// </summary>
+    private static List<AppEntry> CollapseGameShortcuts(List<AppEntry> merged)
+    {
+        var byName = merged
+            .Where(e => !string.IsNullOrWhiteSpace(e.DisplayName))
+            .GroupBy(e => NormalizeName(e.DisplayName), StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        if (byName.Count == 0)
+        {
+            return merged;
+        }
+
+        var absorbed = new HashSet<AppEntry>();
+
+        foreach (IGrouping<string, AppEntry> group in byName)
+        {
+            List<AppEntry> games = [.. group.Where(e => e.Source == AppSource.GameLauncher)];
+            List<AppEntry> shortcuts = [.. group.Where(e => e.Source == AppSource.StartMenu)];
+
+            if (games.Count != 1 || shortcuts.Count == 0 || games.Count + shortcuts.Count != group.Count())
+            {
+                continue;
+            }
+
+            AppEntry game = games[0];
+
+            // The game keeps its identity, so the Games tab holds the same id whether or
+            // not a shortcut happens to exist.
+            foreach (AppEntry shortcut in shortcuts)
+            {
+                // The launcher's own shortcut knows how the launcher wants the game
+                // started, so its route wins - path and arguments together, never one
+                // from each, which would produce a command that runs the wrong thing.
+                if (game.LaunchUri is null && shortcut.TargetPath is not null)
+                {
+                    game.TargetPath = shortcut.TargetPath;
+                    game.Arguments = shortcut.Arguments;
+                    game.LaunchKind = shortcut.LaunchKind;
+                    game.WorkingDirectory = shortcut.WorkingDirectory ?? game.WorkingDirectory;
+                }
+
+                game.ShortcutPath ??= shortcut.ShortcutPath;
+
+                // The library's icon is the game's own; a shortcut's is often the
+                // launcher's.
+                game.IconCacheFile ??= shortcut.IconCacheFile;
+
+                absorbed.Add(shortcut);
+            }
+        }
+
+        return absorbed.Count == 0 ? merged : [.. merged.Where(e => !absorbed.Contains(e))];
+    }
+
+    /// <summary>Case- and spacing-insensitive form of a display name.</summary>
+    private static string NormalizeName(string name) =>
+        string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
     private static AppEntry MergeGroup(string key, List<AppEntry> group)
     {

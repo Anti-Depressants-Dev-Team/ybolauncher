@@ -137,11 +137,22 @@ dropped*, so the show-filtered-entries toggle reveals them with no rescan. Packa
 are never filtered: the catalog has no clutter in it, and names like "Get Help" would
 otherwise trip the word list.
 
-**Icons.** Cached as PNGs keyed on (source path, last-write time, size), so an app update
-naturally invalidates its icon. Executables and shortcuts go through
-`IShellItemImageFactory`; packaged apps use `AppListEntry.DisplayInfo.GetLogo`, which is
-already a PNG and only needs copying. Icons are extracted from the `.lnk` rather than its
+**Icons.** Cached as PNGs keyed on (source path, last-write time, size) plus a cache
+version, so an app update invalidates its icon and a change to how icons are made rebuilds
+all of them. Executables and shortcuts go through `IShellItemImageFactory`; packaged apps
+use `AppListEntry.DisplayInfo.GetLogo`. Icons are extracted from the `.lnk` rather than its
 target so the shortcut's own icon location and index are honoured.
+
+**Every icon is cropped to its artwork** by `IconTrimmer` before it is cached. Padding
+varies wildly by source: a shell-extracted executable icon fills its canvas, while a
+packaged app's `Square150x150Logo` typically draws inside about a third of the image and
+leaves the rest transparent. The tile scales whatever it is given, so without cropping
+those apps show a small icon marooned in an empty square beside a desktop app that fills
+its tile. Measured across a real catalog before the change: 18 of 117 icons covered 20-35%
+of their canvas; after it, every icon covers 90% or more. Cropping is skipped when the
+artwork already fills 92% of the canvas - no re-encode for a one-pixel border - and when
+what is left would be smaller than 8px, since blowing a speck up to tile size looks worse
+than the padding did.
 
 ### Game launchers
 
@@ -280,6 +291,15 @@ only signal that distinguishes a user drag from a rebuild — hence `TabViewMode
 and `LibraryViewModel.IsSyncingTabs`, which suppress write-back during our own churn. A
 manual reorder switches the tab to `SortMode.Manual`, or the new order would silently
 revert on the next rebuild.
+
+**The Games tab makes itself.** The first scan that finds anything in a game launcher
+creates a tab with id `games`, and later scans add newly installed titles to it. After that
+it is an ordinary tab: rename it, move it, drag things in and out. Two pieces of state in
+`tabs.json` keep it from fighting the user - `SeenGameIds` records what it has already
+offered, so a game dragged out stays out while a new one still arrives, and
+`GamesTabRemoved` is set when the tab is deleted, because deleting it is an answer rather
+than an accident. It is never created on a machine with no games.
+
 **Tab icons are monochrome, never emoji.** A tab's glyph is one Segoe Fluent Icons
 character from the fixed set in `TabGlyphs`, chosen from a grid in the tab dialog — there
 is no free-text icon field, because a text field is what let emoji in originally. Emoji

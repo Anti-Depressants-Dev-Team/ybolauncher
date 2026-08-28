@@ -69,6 +69,9 @@ public static class TabGlyphs
     /// <summary>The Home tab's icon.</summary>
     public static string Home { get; } = char.ConvertFromUtf32(0xE80F);
 
+    /// <summary>Glyph for the automatic Games tab.</summary>
+    public static string Games { get; } = char.ConvertFromUtf32(0xE7FC);
+
     /// <summary>
     /// True when the value is a Fluent icon glyph. Anything else - most obviously an emoji
     /// left over from an older version - is replaced on load.

@@ -24,6 +24,11 @@ itch.io, Game Jolt, Rockstar, HoYoPlay) the game runs directly. Xbox Game Pass t
 arrive through the package catalog. Switch the whole thing off in Settings if you do not
 want it.
 
+**A Games tab you did not have to make.** The first scan that finds anything in a game
+launcher creates a Games tab and fills it in; later scans add newly installed titles. It is
+an ordinary tab after that - rename it, drag things in and out, or delete it, and deleting
+it means it stays gone.
+
 **Tabs you arrange.** Home always holds every app and can't be deleted. Every other tab is
 yours: name it, pick an icon and an accent colour, drag apps in from Home, drag files
 and folders in from Explorer, reorder by dragging, and delete it without touching a single

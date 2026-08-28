@@ -13,6 +13,12 @@ namespace Launcher.Core.Icons;
 /// </summary>
 public static class IconCacheKey
 {
+    /// <summary>
+    /// Bumped when the way an icon is produced changes, so every cached file is rebuilt
+    /// rather than serving one made the old way. v2 crops the transparent padding.
+    /// </summary>
+    private const string CacheVersion = "v2";
+
     /// <summary>Cache file name for an icon extracted from a file on disk.</summary>
     public static string ForFile(string sourcePath, DateTime lastWriteUtc, int pixelSize)
     {
@@ -20,7 +26,7 @@ public static class IconCacheKey
 
         string material = string.Create(
             CultureInfo.InvariantCulture,
-            $"file|{sourcePath.ToLowerInvariant()}|{lastWriteUtc.Ticks}|{pixelSize}");
+            $"file|{CacheVersion}|{sourcePath.ToLowerInvariant()}|{lastWriteUtc.Ticks}|{pixelSize}");
 
         return Hash(material);
     }
@@ -35,7 +41,7 @@ public static class IconCacheKey
 
         string material = string.Create(
             CultureInfo.InvariantCulture,
-            $"pkg|{appUserModelId.ToLowerInvariant()}|{packageVersion}|{pixelSize}");
+            $"pkg|{CacheVersion}|{appUserModelId.ToLowerInvariant()}|{packageVersion}|{pixelSize}");
 
         return Hash(material);
     }

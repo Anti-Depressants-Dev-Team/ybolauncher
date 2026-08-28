@@ -104,6 +104,18 @@ public interface ITabService
     bool Contains(string tabId, string entryId);
 
     /// <summary>
+    /// Creates the automatic Games tab the first time a scan finds games, and adds newly
+    /// installed ones to it afterwards. Returns true when the tab list changed.
+    /// <para>
+    /// Does nothing once the user has deleted the tab, and adds only games it has not
+    /// offered before, so a game taken out of the tab stays out.
+    /// </para>
+    /// </summary>
+    Task<bool> SyncGamesTabAsync(
+        IReadOnlyList<string> gameEntryIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Drops references to entries that are no longer in the catalog - an uninstalled app
     /// should not leave a hole in a tab. Returns true when anything was removed.
     /// </summary>
