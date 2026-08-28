@@ -38,6 +38,12 @@ public sealed class AppSettings : IVersionedDocument
     /// </summary>
     public bool ShowFilteredEntries { get; set; }
 
+    /// <summary>
+    /// Show entries the user hid from Home. Hiding must stay reversible, so this is what
+    /// makes them visible again for un-hiding.
+    /// </summary>
+    public bool ShowHiddenEntries { get; set; }
+
     /// <summary>Creates an independent copy, used to diff or roll back pending edits.</summary>
     public AppSettings Clone() => new()
     {
@@ -48,6 +54,7 @@ public sealed class AppSettings : IVersionedDocument
         ScanStartMenu = ScanStartMenu,
         ScanPackagedApps = ScanPackagedApps,
         ShowFilteredEntries = ShowFilteredEntries,
+        ShowHiddenEntries = ShowHiddenEntries,
         Window = Window.Clone(),
     };
 }

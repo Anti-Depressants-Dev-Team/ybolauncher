@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 2 (Discovery) complete.** See "Phase status" at the bottom.
+**Current state: Phase 3 (Home tab) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -143,6 +143,31 @@ naturally invalidates its icon. Executables and shortcuts go through
 already a PNG and only needs copying. Icons are extracted from the `.lnk` rather than its
 target so the shortcut's own icon location and index are honoured.
 
+## Launching
+
+`LaunchService` never throws — a failure is a `LaunchResult`, because SPEC.md requires an
+InfoBar rather than a crash or a silent no-op. It also distinguishes *failed* from
+*cancelled*: a user who clicks No on the UAC prompt (`ERROR_CANCELLED`, 1223) made a
+decision, and showing them an error for it would be wrong.
+
+Packaged apps are started through the package catalog, never by path. The `AppListEntry`
+is re-found via `FindPackagesForUser("", familyName)` — a targeted lookup, not a full
+enumeration — and there is a `shell:AppsFolder\<AUMID>` fallback for when the package has
+been removed since the last scan. `CanLaunchAsAdministrator` is false for packaged apps
+and links: `AppListEntry.LaunchAsync` has no elevation option, so offering the menu item
+would be a lie.
+
+**Tile actions.** Commands live on `AppTileViewModel` so `x:Bind` inside the item template
+reaches them directly, but the work belongs to `HomeViewModel`, which owns the dialogs,
+the InfoBar and persistence. `IAppTileHost` is the seam between the two.
+
+**Hiding is reversible.** "Hide from Home" would otherwise be a one-way door, so the
+`ShowHiddenEntries` setting brings hidden tiles back with the menu item flipped to "Show on
+Home". Same shape as `ShowFilteredEntries`: entries are marked, never dropped.
+
+Launch counts and user edits are written back to `apps.json` on an 800 ms debounce, so
+launching several apps in a row does not mean several full rewrites.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -197,6 +222,17 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 - `IShellLink::Resolve` is never called. Its "find the moved target" search can hit the
   network or trigger an MSI repair, costing seconds per shortcut, and a shortcut whose
   target is gone is junk anyway.
+- **A `GridViewItem` takes its automation name from the bound item's `ToString()`.** Without
+  an override, Narrator announces every tile as
+  `Launcher.App.ViewModels.AppTileViewModel`. `AutomationProperties.Name` on the template
+  root is not enough on its own — the container is a separate element. Verified with UI
+  Automation, not by assumption.
+- XAML event handlers **cannot be `static`** — the generated code binds them through an
+  instance reference and fails with CS0176.
+- `DialogService` gets the window through `Attach`, not the constructor. Page view models
+  resolve it while `MainWindow` is still being constructed, so a `MainWindow` dependency
+  would re-enter the container mid-construction. `NavigationView.SelectedItem` is likewise
+  set on `Loaded`, not in the constructor, so no page is built during window construction.
 
 ## Phase status
 
@@ -204,7 +240,7 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | --- | --- |
 | 1. Skeleton | **Done** — window, custom titlebar, Mica, theme switching, DI, nav shell |
 | 2. Discovery | **Done** — Start Menu + package catalog, dedupe, junk filter, icon cache |
-| 3. Home tab | Not started |
+| 3. Home tab | **Done** — virtualized grid, tiles, launching, context menu, InfoBar |
 | 4. Tabs | Not started |
 | 5. Search | Not started |
 | 6. Polish | Not started |
@@ -213,9 +249,9 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 
 ### Registered services
 
-Only services with a real implementation are in the container. `ILaunchService` and
-`ISearchService` are **deliberately absent** rather than bound to do-nothing placeholders;
-they arrive with Phases 3 and 5.
+Only services with a real implementation are in the container. `ISearchService` is
+**deliberately absent** rather than bound to a do-nothing placeholder; it arrives with
+Phase 5.
 
 | Interface | Implementation |
 | --- | --- |
@@ -224,5 +260,7 @@ they arrive with Phases 3 and 5.
 | `IIconService` | `IconService` |
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
+| `ILaunchService` | `LaunchService` |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |
+| `IDialogService` | `DialogService` (app layer — needs `XamlRoot` and the HWND) |
 | `StoragePaths`, `ShellLinkResolver`, `JunkFilter` | concrete singletons |

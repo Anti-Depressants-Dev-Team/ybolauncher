@@ -29,6 +29,15 @@ public interface IIconService
     string? ExtractFromPath(string sourcePath, int pixelSize);
 
     /// <summary>
+    /// <see cref="ExtractFromPath"/> marshalled onto an STA thread. Use this from the UI,
+    /// which runs in a single-threaded apartment already but must not block.
+    /// </summary>
+    Task<string?> ExtractFromPathAsync(
+        string sourcePath,
+        int pixelSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Stores an already-encoded image (packaged app logos are PNGs already) and returns
     /// the cache file name.
     /// </summary>

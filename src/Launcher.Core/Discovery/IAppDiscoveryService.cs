@@ -30,4 +30,11 @@ public interface IAppDiscoveryService
     Task ScanAsync(
         IProgress<DiscoveryProgress>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists the catalog after a user edit - a rename, a hide, a custom icon, or an
+    /// updated launch count. Does not raise <see cref="EntriesChanged"/>: the caller
+    /// already knows what it changed, and a full list rebuild would lose selection.
+    /// </summary>
+    Task SaveAsync(CancellationToken cancellationToken = default);
 }

@@ -202,6 +202,9 @@ public sealed class AppDiscoveryService : IAppDiscoveryService, IDisposable
         return result;
     }
 
+    public Task SaveAsync(CancellationToken cancellationToken = default) =>
+        SaveCatalogAsync(cancellationToken);
+
     private async Task SaveCatalogAsync(CancellationToken cancellationToken)
     {
         var catalog = new AppCatalog

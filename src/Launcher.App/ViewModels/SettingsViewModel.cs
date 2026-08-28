@@ -40,6 +40,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _showFilteredEntries;
 
     [ObservableProperty]
+    private bool _showHiddenEntries;
+
+    [ObservableProperty]
     private string _iconCacheStatus = string.Empty;
 
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
@@ -67,6 +70,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _scanStartMenu = current.ScanStartMenu;
         _scanPackagedApps = current.ScanPackagedApps;
         _showFilteredEntries = current.ShowFilteredEntries;
+        _showHiddenEntries = current.ShowHiddenEntries;
         _isInitializing = false;
 
         VersionDescription = BuildVersionDescription();
@@ -144,6 +148,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (!_isInitializing)
         {
             _ = _settings.UpdateAsync(s => s.ShowFilteredEntries = value);
+        }
+    }
+
+    partial void OnShowHiddenEntriesChanged(bool value)
+    {
+        // The only way back for an app the user hid from a tile's context menu.
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.ShowHiddenEntries = value);
         }
     }
 

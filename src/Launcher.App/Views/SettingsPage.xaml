@@ -96,6 +96,17 @@
             </tk:SettingsCard>
 
             <tk:SettingsCard
+                Description="Bring back apps you hid from a tile's context menu, so you can unhide them."
+                Header="Show hidden entries">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xED1A;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Show hidden entries"
+                    IsOn="{x:Bind ViewModel.ShowHiddenEntries, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
                 Description="{x:Bind ViewModel.IconCacheStatus, Mode=OneWay}"
                 Header="Rescan and icon cache">
                 <tk:SettingsCard.HeaderIcon>

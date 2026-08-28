@@ -56,6 +56,7 @@ public partial class App : Application
         services.AddLauncherCore();
 
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<IDialogService, DialogService>();
 
         services.AddSingleton<MainWindow>();
         services.AddTransient<ShellViewModel>();

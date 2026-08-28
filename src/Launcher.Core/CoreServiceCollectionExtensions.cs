@@ -1,6 +1,7 @@
 using Launcher.Core.Discovery;
 using Launcher.Core.Icons;
 using Launcher.Core.Interop;
+using Launcher.Core.Launching;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,9 +11,9 @@ namespace Launcher.Core;
 /// <summary>
 /// Registers the UI-independent half of the launcher.
 /// <para>
-/// Only services with a real implementation are registered. ILaunchService and
-/// ISearchService land in Phases 3 and 5 (SPEC.md) - they are deliberately absent rather
-/// than bound to do-nothing placeholders.
+/// Only services with a real implementation are registered. ISearchService lands in
+/// Phase 5 (SPEC.md) - it is deliberately absent rather than bound to a do-nothing
+/// placeholder.
 /// </para>
 /// </summary>
 public static class CoreServiceCollectionExtensions
@@ -37,6 +38,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IAppSource, StartMenuAppSource>();
         services.AddSingleton<IAppSource, PackagedAppSource>();
         services.AddSingleton<IAppDiscoveryService, AppDiscoveryService>();
+        services.AddSingleton<ILaunchService, LaunchService>();
 
         return services;
     }

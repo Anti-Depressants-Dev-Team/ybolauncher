@@ -104,6 +104,12 @@ public sealed class IconService : IIconService
         }
     }
 
+    public Task<string?> ExtractFromPathAsync(
+        string sourcePath,
+        int pixelSize,
+        CancellationToken cancellationToken = default) =>
+        StaThread.RunAsync(() => ExtractFromPath(sourcePath, pixelSize), cancellationToken);
+
     public async Task<string?> SaveEncodedImageAsync(
         string cacheKey,
         byte[] imageBytes,

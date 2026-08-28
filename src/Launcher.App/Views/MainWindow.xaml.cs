@@ -30,13 +30,23 @@ public sealed partial class MainWindow : WindowEx
     private readonly IThemeService _theme;
     private readonly DispatcherQueueTimer _placementSaveTimer;
 
-    public MainWindow(ShellViewModel viewModel, ISettingsService settings, IThemeService theme)
+    public MainWindow(
+        ShellViewModel viewModel,
+        ISettingsService settings,
+        IThemeService theme,
+        IDialogService dialogs)
     {
         ViewModel = viewModel;
         _settings = settings;
         _theme = theme;
 
         InitializeComponent();
+
+        // Handed the window here rather than through the container: DialogService is
+        // resolved by page view models that are themselves built while this window is
+        // still under construction, so taking MainWindow as a dependency would re-enter
+        // the container mid-construction.
+        dialogs.Attach(this);
 
         Title = AppInfo.ProductName;
 
@@ -64,7 +74,10 @@ public sealed partial class MainWindow : WindowEx
         AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarInteractiveRegions();
         AppTitleBar.Loaded += (_, _) => UpdateTitleBarInteractiveRegions();
 
-        NavView.SelectedItem = NavView.MenuItems[0];
+        // Selecting the first item navigates, which constructs a page and resolves its view
+        // model. Deferred to Loaded so none of that happens while this constructor is still
+        // running.
+        NavView.Loaded += (_, _) => NavView.SelectedItem ??= NavView.MenuItems[0];
     }
 
     public ShellViewModel ViewModel { get; }

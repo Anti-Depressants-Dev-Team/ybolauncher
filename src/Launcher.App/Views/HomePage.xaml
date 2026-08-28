@@ -10,16 +10,25 @@
 
     <Page.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
-        <conv:BoolToVisibilityConverter x:Key="InverseBoolToVisibility" Invert="True" />
     </Page.Resources>
 
     <Grid Margin="{StaticResource PageContentMargin}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,12">
+        <!-- Launch failures surface here rather than as a dialog or a silent no-op. -->
+        <InfoBar
+            Grid.Row="0"
+            Margin="0,0,0,12"
+            IsOpen="{x:Bind ViewModel.IsMessageOpen, Mode=TwoWay}"
+            Message="{x:Bind ViewModel.MessageBody, Mode=OneWay}"
+            Severity="{x:Bind ViewModel.MessageSeverity, Mode=OneWay}"
+            Title="{x:Bind ViewModel.MessageTitle, Mode=OneWay}" />
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -46,74 +55,171 @@
                 IsEnabled="{x:Bind ViewModel.CanRescan, Mode=OneWay}" />
         </Grid>
 
-        <!--
-            A plain virtualized list, per SPEC.md Phase 2: "dump results to a plain list to
-            prove it works". Phase 3 replaces it with the real tile grid.
-        -->
-        <ListView
-            Grid.Row="1"
-            AutomationProperties.Name="Discovered apps"
-            IsItemClickEnabled="False"
+        <GridView
+            x:Name="AppGrid"
+            Grid.Row="2"
+            AutomationProperties.Name="Apps"
+            IsItemClickEnabled="True"
+            ItemClick="OnItemClick"
             ItemsSource="{x:Bind ViewModel.Items}"
+            KeyDown="OnGridKeyDown"
             SelectionMode="Single">
 
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="vm:AppListItem">
-                    <Grid Height="48" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="32" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="vm:AppTileViewModel">
+                    <Grid
+                        Width="112"
+                        Height="124"
+                        Padding="8,10"
+                        AutomationProperties.Name="{x:Bind DisplayName, Mode=OneWay}"
+                        PointerEntered="OnTilePointerEntered"
+                        PointerExited="OnTilePointerExited"
+                        ToolTipService.ToolTip="{x:Bind Detail}">
 
-                        <Image
-                            Grid.Column="0"
-                            Width="32"
-                            Height="32"
-                            AutomationProperties.AccessibilityView="Raw"
-                            Source="{x:Bind Icon}" />
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Command="{x:Bind LaunchCommand}" Text="Launch">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE768;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <MenuFlyoutItem
+                                    Command="{x:Bind LaunchAsAdministratorCommand}"
+                                    Text="Launch as administrator"
+                                    Visibility="{x:Bind CanLaunchAsAdministrator, Converter={StaticResource BoolToVisibility}}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE7EF;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutItem
+                                    Command="{x:Bind OpenFileLocationCommand}"
+                                    Text="Open file location"
+                                    Visibility="{x:Bind CanOpenFileLocation, Converter={StaticResource BoolToVisibility}}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE838;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutSeparator />
+
+                                <MenuFlyoutItem Command="{x:Bind RenameCommand}" Text="Rename">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8AC;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutItem Command="{x:Bind ChangeIconCommand}" Text="Change icon">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE91B;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ResetIconCommand}"
+                                    Text="Reset icon"
+                                    Visibility="{x:Bind HasCustomIcon, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+
+                                <MenuFlyoutItem
+                                    Command="{x:Bind EditLaunchOptionsCommand}"
+                                    Text="Edit launch options"
+                                    Visibility="{x:Bind CanEditLaunchOptions, Converter={StaticResource BoolToVisibility}}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE713;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutSeparator />
+
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ToggleFavoriteCommand}"
+                                    Text="{x:Bind FavoriteMenuText, Mode=OneWay}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE734;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ToggleHiddenCommand}"
+                                    Text="{x:Bind HideMenuText, Mode=OneWay}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xED1A;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+
+                                <MenuFlyoutSeparator />
+
+                                <MenuFlyoutItem Command="{x:Bind ShowPropertiesCommand}" Text="Properties">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE946;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
+
+                        <StackPanel VerticalAlignment="Top" Spacing="8">
+                            <Image
+                                Width="48"
+                                Height="48"
+                                HorizontalAlignment="Center"
+                                AutomationProperties.AccessibilityView="Raw"
+                                Source="{x:Bind Icon, Mode=OneWay}" />
+
                             <TextBlock
-                                Style="{StaticResource BodyTextBlockStyle}"
-                                Text="{x:Bind DisplayName}"
-                                TextTrimming="CharacterEllipsis" />
-
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                HorizontalAlignment="Center"
+                                MaxLines="2"
                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                Text="{x:Bind Detail}"
-                                TextTrimming="CharacterEllipsis" />
+                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                TextAlignment="Center"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <StackPanel
-                            Grid.Column="2"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal"
-                            Spacing="8">
+                        <FontIcon
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                            Glyph="{x:Bind BadgeGlyph, Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind BadgeTooltip, Mode=OneWay}"
+                            Visibility="{x:Bind ShowBadge, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
 
-                            <Border
-                                Padding="8,2"
-                                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
-                                CornerRadius="4"
-                                Visibility="{x:Bind IsFiltered, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Text="{x:Bind FilteredLabel}" />
-                            </Border>
+                        <FontIcon
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            FontSize="12"
+                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                            Glyph="&#xE735;"
+                            ToolTipService.ToolTip="Favorite"
+                            Visibility="{x:Bind IsFavorite, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
 
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                Style="{StaticResource CaptionTextBlockStyle}"
-                                Text="{x:Bind SourceLabel}" />
-                        </StackPanel>
+                        <!--
+                            Kept transparent until the pointer is over the tile; the handlers
+                            in code-behind fade it in. A visual state would need the template
+                            root to be a control, which a DataTemplate root is not.
+                        -->
+                        <Button
+                            x:Name="MoreButton"
+                            Width="28"
+                            Height="28"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="More options"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnMoreButtonClick"
+                            Opacity="0">
+                            <FontIcon FontSize="14" Glyph="&#xE712;" />
+                        </Button>
                     </Grid>
                 </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            </GridView.ItemTemplate>
+        </GridView>
 
         <StackPanel
-            Grid.Row="1"
+            Grid.Row="2"
             MaxWidth="440"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
