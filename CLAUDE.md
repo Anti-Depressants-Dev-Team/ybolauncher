@@ -131,6 +131,22 @@ attached — `AppEntry.UpdateFromScan` copies only discovery-owned fields. Key p
 AUMID → URI → target path (+arguments) → name. Arguments are part of the key on purpose:
 two shortcuts to the same binary with different switches are genuinely different apps.
 
+
+**One app, two install paths.** Electron and Squirrel apps - Medal, Discord, GitHub
+Desktop and many more - keep a versioned folder per release beside a stub, so a single app
+owns `…\Medal\current\Medal.exe` and `…\Medal\app-4.1.2\Medal.exe` at the same time.
+Shortcuts to each are different targets, so the merge key cannot tell they are one app and
+it appears twice. `InstallTree.ShareAnInstallFolder` answers that: two executables are one
+app when they share a folder specific enough to *be* an install folder. That last part is
+the whole safety of it - a shared ancestor of `C:\Program Files`, `%LocalAppData%` or
+`%LocalAppData%\Programs` is not evidence of anything, since those hold one folder per app,
+and a relative path is rejected outright rather than resolved against the working
+directory. The shallowest target wins the merge: for a Squirrel app that is the stub, which
+outlives the folder named after this version.
+
+Packaged apps are excluded on purpose. An app installed both from the Store and as a
+desktop program really is two installs, and collapsing them would hide one the user chose
+to have.
 **Filtering.** `JunkFilter` matches on whole words, not substrings — "Visual Studio
 Installer" is a real app and "Uninstall Foo" is not. Rejected entries are *marked, not
 dropped*, so the show-filtered-entries toggle reveals them with no rescan. Packaged apps
@@ -447,6 +463,13 @@ the backup. Entry paths are validated against zip-slip (`..`, absolute paths, dr
 letters) and the archive is refused outright if it does not contain a launcher document —
 a refused import writes nothing at all, not even a backup.
 
+
+**Diagnostics come from the app, not from the user.** Settings has a "Copy diagnostics"
+button that puts a short report on the clipboard: version, install kind, counts by source,
+every duplicated name with the fields its merge key is built from, and the games found. A
+duplicated tile is two entries whose keys differ, and which fields differ is the whole
+answer - asking someone to run a script to find that out mostly means never finding out.
+The report holds nothing the launcher does not already show on screen.
 **Crash log.** An unhandled XAML exception is written to `crash-<stamp>.log` beside the
 settings, then allowed to kill the process. Continuing after one means running in an
 unknown state, and a launcher that quietly corrupts a layout is worse than one that stops.

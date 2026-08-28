@@ -12,6 +12,7 @@ using Launcher.Core.Storage;
 using Launcher.Core.Tabs;
 using Launcher.Core.Updates;
 using Microsoft.UI.Xaml;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace Launcher.App.ViewModels;
 
@@ -102,6 +103,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _updateStatus = string.Empty;
+
+    [ObservableProperty]
+    private string _diagnosticsStatus =
+        "Copies what was found and how, for a bug report. No file contents, nothing the launcher does not already show.";
 
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
     private bool _isInitializing;
@@ -531,6 +536,44 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void Exit() => _windows.RequestExit();
 
 
+
+    /// <summary>
+    /// Puts a short report of what this machine found on the clipboard. A duplicated tile
+    /// is two entries whose merge keys differ, and which fields differ is the whole
+    /// answer - this is how that reaches a bug report without anyone running a script.
+    /// </summary>
+    [RelayCommand]
+    private void CopyDiagnostics()
+    {
+        string report = DiagnosticReport.Build(
+            _discovery.Entries,
+            _updates.CurrentVersion,
+            _updates.InstallKind.ToString());
+
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(report);
+            Clipboard.SetContent(package);
+
+            DiagnosticsStatus = "Copied. Paste it into a bug report.";
+        }
+        catch (Exception)
+        {
+            // The clipboard can be held by another process; the file is the fallback.
+            string path = Path.Combine(_paths.Root, "diagnostics.txt");
+
+            try
+            {
+                File.WriteAllText(path, report);
+                DiagnosticsStatus = "The clipboard was busy, so it was written to " + path;
+            }
+            catch (Exception)
+            {
+                DiagnosticsStatus = "Could not copy the report.";
+            }
+        }
+    }
     // ---- updates ----
 
     /// <summary>Bound directly: this page has no converters, per MainWindow's pattern.</summary>

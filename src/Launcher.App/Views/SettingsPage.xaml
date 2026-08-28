@@ -361,6 +361,16 @@
                 </StackPanel>
             </tk:SettingsCard>
 
+
+            <tk:SettingsCard Description="{x:Bind ViewModel.DiagnosticsStatus, Mode=OneWay}" Header="Copy diagnostics">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE9D9;" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button
+                    AutomationProperties.Name="Copy diagnostics"
+                    Command="{x:Bind ViewModel.CopyDiagnosticsCommand}"
+                    Content="Copy" />
+            </tk:SettingsCard>
         </StackPanel>
     </ScrollViewer>
 

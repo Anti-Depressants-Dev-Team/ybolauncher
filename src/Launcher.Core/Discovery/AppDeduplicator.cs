@@ -47,8 +47,69 @@ public static class AppDeduplicator
             merged.Add(MergeGroup(key, groups[key]));
         }
 
-        return CollapseGameShortcuts(merged);
+        return CollapseSameInstall(CollapseGameShortcuts(merged));
     }
+
+    /// <summary>
+    /// Collapses one application that reached us by two different paths inside its own
+    /// install folder.
+    /// <para>
+    /// Electron and Squirrel apps keep a versioned folder per release beside a stub, so a
+    /// single app owns <c>…\Medal\current\Medal.exe</c> and <c>…\Medal\app-4.1.2\Medal.exe</c>
+    /// at the same time. Shortcuts to each are different targets, so the merge key cannot
+    /// tell they are one app, and it appears twice.
+    /// </para>
+    /// <para>
+    /// The evidence is the same name plus a shared install folder - see
+    /// <see cref="InstallTree"/>, which is what stops two unrelated apps under Program
+    /// Files looking like one. Packaged apps are left out: an app installed both from the
+    /// Store and as a desktop program really is two installs.
+    /// </para>
+    /// </summary>
+    private static List<AppEntry> CollapseSameInstall(List<AppEntry> merged)
+    {
+        var absorbed = new HashSet<AppEntry>();
+
+        foreach (IGrouping<string, AppEntry> group in merged
+            .Where(e => !string.IsNullOrWhiteSpace(e.DisplayName)
+                && !string.IsNullOrWhiteSpace(e.TargetPath)
+                && string.IsNullOrWhiteSpace(e.AppUserModelId))
+            .GroupBy(e => NormalizeName(e.DisplayName), StringComparer.Ordinal)
+            .Where(g => g.Count() > 1))
+        {
+            // The shallowest target is the install root - for a Squirrel app the stub that
+            // survives its next update, rather than a folder named after this version.
+            List<AppEntry> candidates = [.. group.OrderBy(e => Depth(e.TargetPath))];
+            AppEntry primary = candidates[0];
+
+            foreach (AppEntry other in candidates.Skip(1))
+            {
+                if (!InstallTree.ShareAnInstallFolder(primary.TargetPath, other.TargetPath))
+                {
+                    continue;
+                }
+
+                primary.ShortcutPath ??= other.ShortcutPath;
+                primary.IconCacheFile ??= other.IconCacheFile;
+                primary.WorkingDirectory ??= other.WorkingDirectory;
+                primary.IsGame |= other.IsGame;
+
+                // One good shortcut redeems a group, as in the key-based merge.
+                if (!other.IsFiltered && primary.IsFiltered)
+                {
+                    primary.IsFiltered = false;
+                    primary.FilterReason = FilterReason.None;
+                }
+
+                absorbed.Add(other);
+            }
+        }
+
+        return absorbed.Count == 0 ? merged : [.. merged.Where(e => !absorbed.Contains(e))];
+    }
+
+    private static int Depth(string? path) =>
+        path?.Count(c => c is '\\' or '/') ?? int.MaxValue;
 
     /// <summary>
     /// Collapses a game found in a launcher's library with that launcher's own Start Menu
