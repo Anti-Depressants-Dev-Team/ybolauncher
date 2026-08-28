@@ -260,3 +260,102 @@ public sealed class BattleNetLibrary : IGameLibrary
         return path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? path : null;
     }
 }
+
+/// <summary>
+/// Rockstar Games Launcher. Each installed title gets a key under
+/// <c>SOFTWARE\Rockstar Games</c> holding its install folder.
+/// <para>
+/// Games are launched by executable rather than a protocol, which is exactly what the
+/// launcher's own Start Menu shortcuts do - the game's boot executable brings up the
+/// launcher for sign-in by itself.
+/// </para>
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class RockstarLibrary : IGameLibrary
+{
+    /// <summary>Keys under the same root that are not games.</summary>
+    private static readonly string[] ExcludedNameFragments =
+    [
+        "Launcher",
+        "Social Club",
+        "Subscription",
+        "Redistributable",
+    ];
+
+    public string Name => "Rockstar Games";
+
+    public IReadOnlyList<GameEntry> Enumerate()
+    {
+        var games = new List<GameEntry>();
+
+        foreach (string root in new[] { @"SOFTWARE\WOW6432Node\Rockstar Games", @"SOFTWARE\Rockstar Games" })
+        {
+            try
+            {
+                using RegistryKey? parent = Registry.LocalMachine.OpenSubKey(root);
+
+                if (parent is null)
+                {
+                    continue;
+                }
+
+                foreach (string title in parent.GetSubKeyNames())
+                {
+                    using RegistryKey? key = parent.OpenSubKey(title);
+
+                    if (key is null)
+                    {
+                        continue;
+                    }
+
+                    GameEntry? game = BuildGame(title, key.GetValue("InstallFolder") as string);
+
+                    if (game is not null
+                        && !games.Any(g => string.Equals(g.Name, game.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        games.Add(game);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // A registry view we cannot read yields no Rockstar games.
+            }
+        }
+
+        return games;
+    }
+
+    /// <summary>
+    /// Turns one title key into a game, or null when the key is not a game or has nothing
+    /// to run.
+    /// </summary>
+    public static GameEntry? BuildGame(string title, string? installFolder)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(installFolder))
+        {
+            return null;
+        }
+
+        if (ExcludedNameFragments.Any(f => title.Contains(f, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        // The value routinely carries a trailing separator.
+        string folder = installFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (GameExecutables.FindBest(folder, title) is not { } executable)
+        {
+            return null;
+        }
+
+        return new GameEntry
+        {
+            Name = title,
+            LibraryName = "Rockstar Games",
+            ExecutablePath = executable,
+            InstallDirectory = folder,
+        };
+    }
+}

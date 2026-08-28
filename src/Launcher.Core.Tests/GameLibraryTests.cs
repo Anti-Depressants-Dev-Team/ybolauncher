@@ -157,6 +157,8 @@ public sealed class GameLibraryIntegrationTests
             new BattleNetLibrary(),
             new ItchLibrary(() => null),
             new GameJoltLibrary(() => null),
+            new AmazonGamesLibrary(),
+            new RockstarLibrary(),
         ];
 
         foreach (IGameLibrary library in libraries)

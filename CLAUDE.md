@@ -146,10 +146,11 @@ target so the shortcut's own icon location and index are honoured.
 ### Game launchers
 
 `GameLauncherAppSource` is one `IAppSource` over several `IGameLibrary` implementations:
-Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop), Battle.net, itch.io and
-Game Jolt. Each reads the launcher's own bookkeeping rather than guessing at folders, and
-each returns an empty list when that launcher is absent — the normal case — so adding
-another store is a new small class and a DI registration, nothing else.
+Steam, Epic, GOG, Ubisoft Connect, EA (Origin and EA Desktop), Battle.net, itch.io, Game
+Jolt, Amazon Games and Rockstar. Each reads the launcher's own bookkeeping rather than
+guessing at folders, and each returns an empty list when that launcher is absent — the
+normal case — so adding another store is a new small class and a DI registration, nothing
+else.
 
 - **Steam** parses `libraryfolders.vdf` for every library root (games are routinely spread
   across drives) and one `appmanifest_*.acf` per app. `VdfParser` is a small, deliberately
@@ -172,16 +173,26 @@ another store is a new small class and a DI registration, nothing else.
   `%AppData%\game-jolt-client`. Both are JSON despite the extension, and have been written
   as a keyed map and as a plain array across client versions, so the reader accepts either
   rather than assuming one. A package is named after its game, not after its build.
+- **Amazon Games** also keeps a SQLite index, so its per-user uninstall keys are read
+  instead: one `AmazonGames/<title>` key per game, holding the display name, the install
+  folder and — inside the uninstall command — the product id that
+  `amazon-games://play/<id>` needs. Each install carries a `fuel.json` naming the real
+  entry point, which is preferred over guessing at the folder.
+- **Rockstar Games** records an install folder per title under `SOFTWARE\Rockstar Games`.
+  Those games launch by executable, which is what the launcher's own Start Menu shortcuts
+  do — the game's boot executable brings up the launcher for sign-in by itself. Keys under
+  the same root for the launcher, Social Club and redistributables are skipped.
 - **GOG, Ubisoft and Battle.net** are registry-based. GOG games are DRM-free, so they
   launch their executable directly; the other two go through their launcher's protocol.
 
 **Launching** prefers the launcher's protocol (`steam://rungameid/…`,
-`com.epicgames.launcher://…`, `uplay://…`, `origin2://…`) because it is what starts the
-launcher's own overlay, cloud saves and DRM. The install path is still kept on the entry:
-it is where the icon comes from and what makes "open file location" work. GOG, itch.io and
-Game Jolt have no such protocol worth going through - their games are DRM-free and run
-directly - so for those the executable is the launch target, and an install with no
-executable to find is skipped rather than shown as a tile that opens a folder.
+`com.epicgames.launcher://…`, `uplay://…`, `origin2://…`, `amazon-games://play/…`) because
+it is what starts the launcher's own overlay, cloud saves and DRM. The install path is
+still kept on the entry: it is where the icon comes from and what makes "open file
+location" work. GOG, itch.io, Game Jolt and Rockstar have no such protocol worth going
+through - their games run directly, and for Rockstar the game's own executable is what
+brings the launcher up - so for those the executable is the launch target, and an install
+with no executable to find is skipped rather than shown as a tile that opens a folder.
 
 **Deduplication is free.** A game's Start Menu shortcut is a `.url` holding the same
 protocol URI, so `AppIdentity` derives the same merge key from both and they collapse into
@@ -193,10 +204,12 @@ duplicates.
 
 No game launcher is installed on the development machine, so this code is covered by
 fixture tests that write a real folder layout to disk - a Steam library in
-`GameLauncherAppSourceTests`, itch and Game Jolt installs in `IndieLauncherTests` - rather
-than by a live scan. The itch and Game Jolt file names and shapes come from those clients'
-published behaviour, not from a machine here; both readers are deliberately lenient and
-report nothing when what they find does not match.
+`GameLauncherAppSourceTests`, itch and Game Jolt installs in `IndieLauncherTests`, Amazon
+and Rockstar installs in `StoreLauncherTests` - rather than by a live scan. For the
+registry-based launchers only the entry-to-game step is covered that way; the registry walk
+itself needs an installed launcher. Every file name and data shape here comes from those
+clients' published behaviour rather than from a machine that has them, so each reader is
+deliberately lenient and reports nothing when what it finds does not match.
 
 ## Launching
 
@@ -507,7 +520,7 @@ Every service interface now has a real implementation; nothing is bound to a pla
 | `IIconService` | `IconService` |
 | `IAppDiscoveryService` | `AppDiscoveryService` |
 | `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource`, `GameLauncherAppSource` |
-| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary`, `ItchLibrary`, `GameJoltLibrary` |
+| `IGameLibrary` (multiple) | `SteamLibrary`, `EpicLibrary`, `GogLibrary`, `UbisoftLibrary`, `EaLibrary`, `BattleNetLibrary`, `ItchLibrary`, `GameJoltLibrary`, `AmazonGamesLibrary`, `RockstarLibrary` |
 | `ILaunchService` | `LaunchService` |
 | `IStartupService` | `StartupService` (HKCU Run key) |
 | `IAppWatcherService` | `AppWatcherService` (FileSystemWatcher + PackageCatalog) |
