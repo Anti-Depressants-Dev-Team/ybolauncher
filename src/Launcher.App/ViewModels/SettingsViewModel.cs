@@ -43,6 +43,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _showHiddenEntries;
 
     [ObservableProperty]
+    private int _defaultViewModeIndex;
+
+    [ObservableProperty]
+    private double _defaultTileScalePercent = 100;
+
+    [ObservableProperty]
     private string _iconCacheStatus = string.Empty;
 
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
@@ -71,6 +77,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _scanPackagedApps = current.ScanPackagedApps;
         _showFilteredEntries = current.ShowFilteredEntries;
         _showHiddenEntries = current.ShowHiddenEntries;
+        _defaultViewModeIndex = (int)current.DefaultViewMode;
+        _defaultTileScalePercent = current.DefaultTileScale * 100;
         _isInitializing = false;
 
         VersionDescription = BuildVersionDescription();
@@ -148,6 +156,24 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (!_isInitializing)
         {
             _ = _settings.UpdateAsync(s => s.ShowFilteredEntries = value);
+        }
+    }
+
+    partial void OnDefaultViewModeIndexChanged(int value)
+    {
+        // Applies to tabs created from here on; existing tabs keep their own choice.
+        if (!_isInitializing && value >= 0 && Enum.IsDefined((ViewMode)value))
+        {
+            _ = _settings.UpdateAsync(s => s.DefaultViewMode = (ViewMode)value);
+        }
+    }
+
+    partial void OnDefaultTileScalePercentChanged(double value)
+    {
+        if (!_isInitializing)
+        {
+            double scale = Math.Clamp(value / 100, LauncherTab.MinTileScale, LauncherTab.MaxTileScale);
+            _ = _settings.UpdateAsync(s => s.DefaultTileScale = scale);
         }
     }
 

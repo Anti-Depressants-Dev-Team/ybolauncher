@@ -315,6 +315,49 @@ public sealed class TabService : ITabService
         await CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task SetViewAsync(
+        string tabId,
+        ViewMode? viewMode = null,
+        double? tileScale = null,
+        SortMode? sortMode = null,
+        CancellationToken cancellationToken = default)
+    {
+        LauncherTab? tab = Find(tabId);
+        if (tab is null)
+        {
+            return;
+        }
+
+        bool changed = false;
+
+        if (viewMode is { } mode && Enum.IsDefined(mode) && tab.ViewMode != mode)
+        {
+            tab.ViewMode = mode;
+            changed = true;
+        }
+
+        if (tileScale is { } scale && !double.IsNaN(scale))
+        {
+            double clamped = Math.Clamp(scale, LauncherTab.MinTileScale, LauncherTab.MaxTileScale);
+            if (Math.Abs(tab.TileScale - clamped) > 0.001)
+            {
+                tab.TileScale = clamped;
+                changed = true;
+            }
+        }
+
+        if (sortMode is { } sort && Enum.IsDefined(sort) && tab.SortMode != sort)
+        {
+            tab.SortMode = sort;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     public bool Contains(string tabId, string entryId)
     {
         LauncherTab? tab = Find(tabId);

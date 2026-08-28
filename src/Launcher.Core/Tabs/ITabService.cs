@@ -87,6 +87,19 @@ public interface ITabService
         IReadOnlyList<string> entryIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates how a tab presents its contents. Each argument is optional so a caller can
+    /// change one setting without restating the others. <paramref name="tileScale"/> is
+    /// clamped to the range <see cref="LauncherTab.MinTileScale"/>..
+    /// <see cref="LauncherTab.MaxTileScale"/>.
+    /// </summary>
+    Task SetViewAsync(
+        string tabId,
+        ViewMode? viewMode = null,
+        double? tileScale = null,
+        SortMode? sortMode = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Whether an entry is a member of the given custom tab.</summary>
     bool Contains(string tabId, string entryId);
 

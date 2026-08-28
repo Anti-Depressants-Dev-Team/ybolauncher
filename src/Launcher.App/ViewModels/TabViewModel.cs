@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.Core.Models;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
@@ -21,6 +22,12 @@ public sealed partial class TabViewModel : ObservableObject
     [ObservableProperty]
     private string? _accentColorHex;
 
+    [ObservableProperty]
+    private ViewMode _viewMode;
+
+    [ObservableProperty]
+    private double _tileScale = 1.0;
+
     /// <summary>
     /// Suppresses order persistence while the collection is being rebuilt. Without it a
     /// rebuild's Clear/Add churn would look like a manual reorder and overwrite the
@@ -36,6 +43,8 @@ public sealed partial class TabViewModel : ObservableObject
         _name = model.Name;
         _glyph = model.Glyph;
         _accentColorHex = model.AccentColorHex;
+        _viewMode = model.ViewMode;
+        _tileScale = model.TileScale;
     }
 
     public LauncherTab Model { get; }
@@ -66,6 +75,43 @@ public sealed partial class TabViewModel : ObservableObject
 
     public Visibility AccentVisibility => HasAccent ? Visibility.Visible : Visibility.Collapsed;
 
+    public bool IsListView => ViewMode == ViewMode.CompactList;
+
+    /// <summary>
+    /// Unscaled tile metrics per view mode. A NaN width means "size to content", which is
+    /// what the compact list wants so rows stretch across the panel.
+    /// </summary>
+    private (double Width, double Height, double Icon) BaseMetrics => ViewMode switch
+    {
+        ViewMode.LargeGrid => (152, 168, 72),
+        ViewMode.CompactList => (double.NaN, 44, 28),
+        _ => (112, 124, 48),
+    };
+
+    public double TileWidth => double.IsNaN(BaseMetrics.Width)
+        ? double.NaN
+        : Math.Round(BaseMetrics.Width * TileScale);
+
+    public double TileHeight => Math.Round(BaseMetrics.Height * TileScale);
+
+    public double IconSize => Math.Round(BaseMetrics.Icon * TileScale);
+
+    // Layout is expressed as XAML types on the view model rather than through converters,
+    // so one tile definition serves both the grid and the compact list.
+    public Orientation ItemOrientation => IsListView ? Orientation.Horizontal : Orientation.Vertical;
+
+    public HorizontalAlignment LabelAlignment =>
+        IsListView ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+
+    public TextAlignment LabelTextAlignment => IsListView ? TextAlignment.Left : TextAlignment.Center;
+
+    public VerticalAlignment ContentAlignment =>
+        IsListView ? VerticalAlignment.Center : VerticalAlignment.Top;
+
+    public int LabelMaxLines => IsListView ? 1 : 2;
+
+    public Thickness ItemPadding => IsListView ? new Thickness(12, 4, 8, 4) : new Thickness(8, 10, 8, 8);
+
     public string EmptyStateTitle => IsHome ? "No apps found" : "This tab is empty";
 
     public string EmptyStateBody => IsHome
@@ -82,6 +128,38 @@ public sealed partial class TabViewModel : ObservableObject
         Model.Glyph = value;
         OnPropertyChanged(nameof(HasGlyph));
         OnPropertyChanged(nameof(GlyphVisibility));
+    }
+
+    partial void OnViewModeChanged(ViewMode value)
+    {
+        Model.ViewMode = value;
+        NotifyMetricsChanged();
+        OnPropertyChanged(nameof(IsListView));
+    }
+
+    partial void OnTileScaleChanged(double value)
+    {
+        Model.TileScale = value;
+        NotifyMetricsChanged();
+    }
+
+    private void NotifyMetricsChanged()
+    {
+        foreach (string property in new[]
+        {
+            nameof(TileWidth),
+            nameof(TileHeight),
+            nameof(IconSize),
+            nameof(ItemOrientation),
+            nameof(LabelAlignment),
+            nameof(LabelTextAlignment),
+            nameof(ContentAlignment),
+            nameof(LabelMaxLines),
+            nameof(ItemPadding),
+        })
+        {
+            OnPropertyChanged(property);
+        }
     }
 
     partial void OnAccentColorHexChanged(string? value)

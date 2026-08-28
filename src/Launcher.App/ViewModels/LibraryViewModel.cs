@@ -119,6 +119,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     {
         OnPropertyChanged(nameof(ShowEmptyState));
         OnPropertyChanged(nameof(SearchScopeLabel));
+        NotifyViewSettingsChanged();
 
         if (value is not null)
         {
@@ -258,6 +259,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
             existing.Name = model.Name;
             existing.Glyph = model.Glyph;
             existing.AccentColorHex = model.AccentColorHex;
+            existing.ViewMode = model.ViewMode;
+            existing.TileScale = model.TileScale;
         }
 
         RebuildAll();
@@ -293,6 +296,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
         }
 
         LauncherTab created = await _tabs.CreateTabAsync(edit.Name, edit.Glyph, edit.AccentColorHex);
+
+        // A new tab starts from the defaults on the Settings page rather than the model's
+        // own hard-coded values.
+        AppSettings settings = _settings.Current;
+        await _tabs.SetViewAsync(created.Id, settings.DefaultViewMode, settings.DefaultTileScale);
 
         SelectedTab = Tabs.FirstOrDefault(t => string.Equals(t.Id, created.Id, StringComparison.Ordinal));
     }
@@ -374,12 +382,15 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
             (settings.ShowHiddenEntries || !e.IsHidden)
             && (settings.ShowFilteredEntries || !e.IsFiltered);
 
-        List<AppEntry> entries = tab.IsHome
-            ? OrderForHome([.. _discovery.Entries.Where(IsVisible)], tab.Model)
-            : [.. tab.Model.EntryIds
+        // Home shows everything; a custom tab shows exactly what was put in it.
+        IEnumerable<AppEntry> members = tab.IsHome
+            ? _discovery.Entries.Where(IsVisible)
+            : tab.Model.EntryIds
                 .Select(id => byId.TryGetValue(id, out AppEntry? e) ? e : null)
                 .Where(e => e is not null && IsVisible(e))
-                .Select(e => e!)];
+                .Select(e => e!);
+
+        List<AppEntry> entries = OrderEntries(members, tab.Model);
 
         // Suppress order persistence: the clear/add churn below is not a manual reorder.
         tab.IsRebuilding = true;
@@ -398,26 +409,48 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     }
 
     /// <summary>
-    /// Home always shows every app. Its stored order is a hint, not a membership list, so
-    /// anything missing from it is appended alphabetically rather than dropped - that is
-    /// what stops a newly installed app from disappearing after a manual reorder.
+    /// Applies the tab's sort. Name is always the final tie-break so equal entries do not
+    /// swap places between rebuilds.
+    /// <para>
+    /// Favourites deliberately do not float to the top: a sort labelled "A to Z" that is
+    /// not actually A to Z is worse than no sort at all. The star badge marks them instead.
+    /// </para>
     /// </summary>
-    private static List<AppEntry> OrderForHome(List<AppEntry> visible, LauncherTab home)
+    private static List<AppEntry> OrderEntries(IEnumerable<AppEntry> entries, LauncherTab tab)
     {
-        if (home.SortMode != SortMode.Manual || home.EntryIds.Count == 0)
+        return tab.SortMode switch
         {
-            return [.. visible
-                .OrderByDescending(e => e.IsFavorite)
-                .ThenBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)];
-        }
+            SortMode.Alphabetical =>
+                [.. entries.OrderBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)],
 
+            SortMode.MostUsed =>
+                [.. entries
+                    .OrderByDescending(e => e.LaunchCount)
+                    .ThenBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)],
+
+            SortMode.RecentlyUsed =>
+                [.. entries
+                    .OrderByDescending(e => e.LastLaunchedUtc ?? DateTimeOffset.MinValue)
+                    .ThenBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)],
+
+            _ => ManualOrder(entries, tab),
+        };
+    }
+
+    /// <summary>
+    /// Manual order, from the tab's stored id list. Anything not in that list is appended
+    /// alphabetically rather than dropped - on Home the list is only an order hint, so
+    /// this is what stops a newly installed app disappearing after a manual reorder.
+    /// </summary>
+    private static List<AppEntry> ManualOrder(IEnumerable<AppEntry> entries, LauncherTab tab)
+    {
         var rank = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (int i = 0; i < home.EntryIds.Count; i++)
+        for (int i = 0; i < tab.EntryIds.Count; i++)
         {
-            rank[home.EntryIds[i]] = i;
+            rank[tab.EntryIds[i]] = i;
         }
 
-        return [.. visible
+        return [.. entries
             .OrderBy(e => rank.TryGetValue(e.Id, out int index) ? index : int.MaxValue)
             .ThenBy(e => e.DisplayName, StringComparer.CurrentCultureIgnoreCase)];
     }
@@ -436,6 +469,75 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
             total,
             filtered,
             hidden);
+    }
+
+    // ---- view mode, tile size and sort (all per tab) ----
+
+    /// <summary>Index into the view-mode radio buttons for the selected tab.</summary>
+    public int ViewModeIndex
+    {
+        get => (int)(SelectedTab?.ViewMode ?? ViewMode.MediumGrid);
+        set
+        {
+            // RadioButtons reports -1 while its items are still loading.
+            if (value >= 0 && Enum.IsDefined((ViewMode)value) && value != ViewModeIndex)
+            {
+                _ = ApplyViewAsync(viewMode: (ViewMode)value);
+            }
+        }
+    }
+
+    public int SortModeIndex
+    {
+        get => (int)(SelectedTab?.Model.SortMode ?? SortMode.Manual);
+        set
+        {
+            if (value >= 0 && Enum.IsDefined((SortMode)value) && value != SortModeIndex)
+            {
+                _ = ApplyViewAsync(sortMode: (SortMode)value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tile size as a percentage, which is what the slider works in. The slider's range
+    /// mirrors LauncherTab.MinTileScale..MaxTileScale; the service clamps regardless.
+    /// </summary>
+    public double TileScalePercent
+    {
+        get => (SelectedTab?.TileScale ?? 1.0) * 100;
+        set
+        {
+            if (Math.Abs(value - TileScalePercent) > 0.5)
+            {
+                _ = ApplyViewAsync(tileScale: value / 100);
+            }
+        }
+    }
+
+
+    private async Task ApplyViewAsync(
+        ViewMode? viewMode = null,
+        double? tileScale = null,
+        SortMode? sortMode = null)
+    {
+        if (SelectedTab is not { } tab)
+        {
+            return;
+        }
+
+        // The service clamps and persists; SyncTabs then pushes the stored values back
+        // into the view models, so the UI never diverges from what was saved.
+        await _tabs.SetViewAsync(tab.Id, viewMode, tileScale, sortMode);
+
+        NotifyViewSettingsChanged();
+    }
+
+    private void NotifyViewSettingsChanged()
+    {
+        OnPropertyChanged(nameof(ViewModeIndex));
+        OnPropertyChanged(nameof(SortModeIndex));
+        OnPropertyChanged(nameof(TileScalePercent));
     }
 
     // ---- search ----
@@ -476,6 +578,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IAppTileHost
     {
         _ = _settings.UpdateAsync(s => s.SearchCurrentTabOnly = value);
         OnPropertyChanged(nameof(SearchScopeLabel));
+        NotifyViewSettingsChanged();
         RunSearch();
     }
 

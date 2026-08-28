@@ -1,19 +1,21 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using Launcher.App.ViewModels;
+using Launcher.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.System;
+using VirtualKey = Windows.System.VirtualKey;
 
 namespace Launcher.App.Controls;
 
 /// <summary>
-/// The tile grid for one tab, with drag-and-drop between tabs and from Explorer.
+/// The apps for one tab, as a wrapping grid or a compact list, with drag-and-drop between
+/// tabs and from Explorer.
 /// </summary>
 public sealed partial class AppGridView : UserControl
 {
@@ -29,13 +31,39 @@ public sealed partial class AppGridView : UserControl
     {
         _library = App.Services.GetRequiredService<LibraryViewModel>();
         InitializeComponent();
+
+        ApplyTransitions(TileGrid);
+        ApplyTransitions(CompactList);
     }
 
-    /// <summary>The tab whose contents this grid shows.</summary>
+    /// <summary>The tab whose contents this view shows.</summary>
     public TabViewModel? Tab
     {
         get => (TabViewModel?)GetValue(TabProperty);
         set => SetValue(TabProperty, value);
+    }
+
+    /// <summary>The list actually on screen for the current view mode.</summary>
+    private ListViewBase ActiveList => Tab?.IsListView == true ? CompactList : TileGrid;
+
+    /// <summary>
+    /// Fluent add/remove and reorder transitions, so tiles appearing after a scan or a
+    /// drag animate in rather than popping. Skipped entirely under reduced motion.
+    /// </summary>
+    private static void ApplyTransitions(ListViewBase list)
+    {
+        if (!Motion.AnimationsEnabled)
+        {
+            list.ItemContainerTransitions = null;
+            return;
+        }
+
+        list.ItemContainerTransitions =
+        [
+            new AddDeleteThemeTransition(),
+            new ReorderThemeTransition(),
+            new ContentThemeTransition(),
+        ];
     }
 
     private static void OnTabPropertyChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
@@ -51,20 +79,42 @@ public sealed partial class AppGridView : UserControl
         if (previous is not null)
         {
             previous.Items.CollectionChanged -= OnItemsChanged;
+            previous.PropertyChanged -= OnTabPropertyChanged;
         }
 
         if (current is not null)
         {
             current.Items.CollectionChanged += OnItemsChanged;
+            current.PropertyChanged += OnTabPropertyChanged;
         }
 
-        Grid.ItemsSource = current?.Items;
+        ApplyViewMode();
         UpdateEmptyState();
+    }
+
+    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TabViewModel.IsListView))
+        {
+            ApplyViewMode();
+        }
+    }
+
+    /// <summary>Shows the control that matches the tab's view mode and hides the other.</summary>
+    private void ApplyViewMode()
+    {
+        bool isList = Tab?.IsListView == true;
+
+        TileGrid.ItemsSource = isList ? null : Tab?.Items;
+        CompactList.ItemsSource = isList ? Tab?.Items : null;
+
+        TileGrid.Visibility = isList ? Visibility.Collapsed : Visibility.Visible;
+        CompactList.Visibility = isList ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        // GridView performs the reorder itself and reports it as a Move. That is the only
+        // The list performs the reorder itself and reports it as a Move. That is the only
         // signal that the user actually dragged something, as opposed to a rebuild.
         if (e.Action == NotifyCollectionChangedAction.Move && Tab is { IsRebuilding: false } tab)
         {
@@ -81,13 +131,21 @@ public sealed partial class AppGridView : UserControl
         bool empty = tab is null || tab.Items.Count == 0;
         EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
 
-        if (tab is not null)
+        if (tab is null)
         {
-            EmptyStateTitle.Text = tab.EmptyStateTitle;
-            EmptyStateBody.Text = tab.EmptyStateBody;
-            EmptyStateGlyph.Glyph = tab.IsHome ? "" : "";
+            return;
         }
+
+        EmptyStateTitle.Text = tab.EmptyStateTitle;
+        EmptyStateBody.Text = tab.EmptyStateBody;
+        EmptyStateGlyph.Glyph = tab.IsHome ? "" : "";
+
+        // Home has nowhere to send the user; an empty custom tab does.
+        EmptyStateAction.Visibility = tab.IsHome ? Visibility.Collapsed : Visibility.Visible;
     }
+
+    private void OnEmptyStateActionClick(object sender, RoutedEventArgs e) =>
+        _library.SelectedTab = _library.Tabs.FirstOrDefault(t => t.IsHome);
 
     private void OnItemClick(object sender, ItemClickEventArgs e)
     {
@@ -97,10 +155,13 @@ public sealed partial class AppGridView : UserControl
         }
     }
 
-    /// <summary>Enter launches; Delete removes from a custom tab. Full keyboard nav is Phase 6.</summary>
-    private void OnGridKeyDown(object sender, KeyRoutedEventArgs e)
+    /// <summary>
+    /// Enter launches; Delete removes from a custom tab. Arrow keys are handled by the
+    /// list itself.
+    /// </summary>
+    private void OnItemsKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (Grid.SelectedItem is not AppTileViewModel tile)
+        if (ActiveList.SelectedItem is not AppTileViewModel tile)
         {
             return;
         }
@@ -152,7 +213,7 @@ public sealed partial class AppGridView : UserControl
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems))
         {
-            // An internal drag: let GridView run its own reorder logic untouched.
+            // An internal drag: let the list run its own reorder logic untouched.
             return;
         }
 
@@ -169,8 +230,7 @@ public sealed partial class AppGridView : UserControl
             return;
         }
 
-        // Taken before the first await: the deferral keeps the data view alive, but the
-        // event args must be consumed synchronously.
+        // The deferral keeps the data view alive across the await.
         DragOperationDeferral deferral = e.GetDeferral();
 
         try
@@ -192,92 +252,6 @@ public sealed partial class AppGridView : UserControl
         finally
         {
             deferral.Complete();
-        }
-    }
-
-    // ---- context menu ----
-
-    /// <summary>
-    /// Fills in the "Pin to tab" submenu. The tab list changes at runtime and
-    /// <c>MenuFlyoutSubItem.Items</c> is not bindable, so it is built on open.
-    /// </summary>
-    private void OnTileFlyoutOpening(object? sender, object e)
-    {
-        if (sender is not MenuFlyout flyout
-            || flyout.Target?.DataContext is not AppTileViewModel tile)
-        {
-            return;
-        }
-
-        MenuFlyoutSubItem? submenu = flyout.Items
-            .OfType<MenuFlyoutSubItem>()
-            .FirstOrDefault(i => (i.Tag as string) == "pin");
-
-        if (submenu is null)
-        {
-            return;
-        }
-
-        submenu.Items.Clear();
-
-        foreach (TabViewModel tab in _library.Tabs)
-        {
-            // Home holds everything already, and pinning to the current tab is a no-op.
-            if (tab.IsHome || ReferenceEquals(tab, tile.Owner))
-            {
-                continue;
-            }
-
-            submenu.Items.Add(new MenuFlyoutItem
-            {
-                Text = tab.Name,
-                Command = tile.PinToTabCommand,
-                CommandParameter = tab.Id,
-            });
-        }
-
-        if (submenu.Items.Count == 0)
-        {
-            submenu.Items.Add(new MenuFlyoutItem
-            {
-                Text = "No other tabs yet",
-                IsEnabled = false,
-            });
-        }
-    }
-
-    private void OnMoreButtonClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement button)
-        {
-            return;
-        }
-
-        for (DependencyObject? node = button; node is not null; node = VisualTreeHelper.GetParent(node))
-        {
-            if (node is FrameworkElement { ContextFlyout: FlyoutBase flyout })
-            {
-                flyout.ShowAt(button);
-                return;
-            }
-        }
-    }
-
-    private void OnTilePointerEntered(object sender, PointerRoutedEventArgs e) =>
-        SetMoreButtonOpacity(sender, 1);
-
-    private void OnTilePointerExited(object sender, PointerRoutedEventArgs e) =>
-        SetMoreButtonOpacity(sender, 0);
-
-    /// <summary>
-    /// Each templated tile has its own name scope, so the button is looked up from the
-    /// template root rather than by field.
-    /// </summary>
-    private static void SetMoreButtonOpacity(object sender, double opacity)
-    {
-        if (sender is FrameworkElement root && root.FindName("MoreButton") is UIElement button)
-        {
-            button.Opacity = opacity;
         }
     }
 }

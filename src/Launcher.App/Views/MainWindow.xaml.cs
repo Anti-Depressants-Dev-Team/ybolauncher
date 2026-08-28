@@ -196,6 +196,55 @@ public sealed partial class MainWindow : WindowEx
         TitleBarSearchBox.Focus(FocusState.Programmatic);
     }
 
+    // ---- tab keyboard navigation ----
+
+    private void OnNextTabRequested(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        SelectTabByOffset(1);
+    }
+
+    private void OnPreviousTabRequested(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        SelectTabByOffset(-1);
+    }
+
+    /// <summary>Ctrl+Tab wraps around, which is what every tabbed app does.</summary>
+    private void SelectTabByOffset(int offset)
+    {
+        int count = Library.Tabs.Count;
+
+        if (count == 0 || Library.SelectedTab is not { } current)
+        {
+            return;
+        }
+
+        int index = Library.Tabs.IndexOf(current);
+        Library.SelectedTab = Library.Tabs[((index + offset) % count + count) % count];
+    }
+
+    /// <summary>
+    /// Ctrl+1..9. Nine means the last tab rather than the ninth, matching browsers, so the
+    /// shortcut stays useful with more than nine tabs.
+    /// </summary>
+    private void OnJumpToTabRequested(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+
+        int count = Library.Tabs.Count;
+        if (count == 0)
+        {
+            return;
+        }
+
+        int requested = sender.Key - VirtualKey.Number1;
+
+        Library.SelectedTab = requested >= 8
+            ? Library.Tabs[count - 1]
+            : Library.Tabs[Math.Min(requested, count - 1)];
+    }
+
     // ---- tabs ----
 
     private async void OnAddTabClick(TabView sender, object args) =>

@@ -218,6 +218,59 @@ public sealed class TabServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SetView_changesOnlyWhatIsSupplied()
+    {
+        TabService tabs = await LoadedAsync(NewService());
+        LauncherTab games = await tabs.CreateTabAsync("Games");
+
+        await tabs.SetViewAsync(games.Id, viewMode: ViewMode.LargeGrid);
+        await tabs.SetViewAsync(games.Id, sortMode: SortMode.Alphabetical);
+
+        // Setting the sort must not reset the view mode back to its default.
+        Assert.Equal(ViewMode.LargeGrid, games.ViewMode);
+        Assert.Equal(SortMode.Alphabetical, games.SortMode);
+    }
+
+    [Theory]
+    [InlineData(0.1, LauncherTab.MinTileScale)]
+    [InlineData(99.0, LauncherTab.MaxTileScale)]
+    [InlineData(1.25, 1.25)]
+    public async Task SetView_clampsTheTileScale(double requested, double expected)
+    {
+        TabService tabs = await LoadedAsync(NewService());
+        LauncherTab games = await tabs.CreateTabAsync("Games");
+
+        await tabs.SetViewAsync(games.Id, tileScale: requested);
+
+        Assert.Equal(expected, games.TileScale, 3);
+    }
+
+    [Fact]
+    public async Task ViewSettingsSurviveARoundTrip()
+    {
+        TabService first = await LoadedAsync(NewService());
+        LauncherTab games = await first.CreateTabAsync("Games");
+        await first.SetViewAsync(games.Id, ViewMode.CompactList, 1.4, SortMode.MostUsed);
+
+        TabService second = await LoadedAsync(NewService());
+        LauncherTab reloaded = second.Tabs[1];
+
+        Assert.Equal(ViewMode.CompactList, reloaded.ViewMode);
+        Assert.Equal(1.4, reloaded.TileScale, 3);
+        Assert.Equal(SortMode.MostUsed, reloaded.SortMode);
+    }
+
+    [Fact]
+    public async Task SetView_onAnUnknownTab_isIgnored()
+    {
+        TabService tabs = await LoadedAsync(NewService());
+
+        await tabs.SetViewAsync("nonsense", ViewMode.LargeGrid);
+
+        Assert.Equal(ViewMode.MediumGrid, tabs.Home.ViewMode);
+    }
+
+    [Fact]
     public async Task Pruning_dropsEntriesThatNoLongerExist()
     {
         TabService tabs = await LoadedAsync(NewService());

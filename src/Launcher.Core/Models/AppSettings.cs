@@ -50,6 +50,12 @@ public sealed class AppSettings : IVersionedDocument
     /// </summary>
     public bool SearchCurrentTabOnly { get; set; }
 
+    /// <summary>View mode a newly created tab starts with.</summary>
+    public ViewMode DefaultViewMode { get; set; } = ViewMode.MediumGrid;
+
+    /// <summary>Tile size multiplier a newly created tab starts with.</summary>
+    public double DefaultTileScale { get; set; } = 1.0;
+
     /// <summary>Creates an independent copy, used to diff or roll back pending edits.</summary>
     public AppSettings Clone() => new()
     {
@@ -62,6 +68,8 @@ public sealed class AppSettings : IVersionedDocument
         ShowFilteredEntries = ShowFilteredEntries,
         ShowHiddenEntries = ShowHiddenEntries,
         SearchCurrentTabOnly = SearchCurrentTabOnly,
+        DefaultViewMode = DefaultViewMode,
+        DefaultTileScale = DefaultTileScale,
         Window = Window.Clone(),
     };
 }

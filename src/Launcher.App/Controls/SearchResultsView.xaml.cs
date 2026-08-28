@@ -23,10 +23,11 @@ public sealed partial class SearchResultsView : UserControl
 
     /// <summary>
     /// Shown only when a query produced nothing - not while the box is empty, which is
-    /// when this whole view is hidden anyway.
+    /// when this whole view is hidden anyway. Set in code rather than bound: the condition
+    /// spans two sources and a plain property binding could not be notified of either.
     /// </summary>
-    public Visibility EmptyVisibility =>
-        Library.IsSearchActive && Library.SearchResults.Count == 0
+    private void UpdateEmptyState() =>
+        EmptyState.Visibility = Library.IsSearchActive && Library.SearchResults.Count == 0
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -39,7 +40,7 @@ public sealed partial class SearchResultsView : UserControl
 
     private void OnResultsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        Bindings.Update();
+        UpdateEmptyState();
         ApplySelection();
     }
 

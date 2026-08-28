@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 5 (Search) complete.** See "Phase status" at the bottom.
+**Current state: Phase 6 (Polish) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -222,6 +222,38 @@ different intent from skipping letters inside one, and fzf charges both the same
 The executable's file name is searched as a secondary field behind a penalty, so "devenv"
 finds Visual Studio without outranking anything whose visible name matches.
 
+## Presentation, motion and accessibility
+
+**View mode, tile size and sort are per tab**, stored on `LauncherTab` and changed from the
+view button beside the tab strip. New tabs start from the defaults on the Settings page.
+
+One tile definition (`AppTile`) serves both the wrapping grid and the compact list, so
+there is a single context menu that cannot drift between modes. Layout differences are
+expressed as XAML-typed properties on `TabViewModel` (`ItemOrientation`, `LabelAlignment`,
+`ItemPadding`, …) rather than converters. `AppGridView` hosts a `GridView` and a `ListView`
+and toggles between them — a collapsed list realizes no containers, so only the visible one
+costs anything.
+
+**Sorting does exactly what it says.** Favourites do not float to the top: a sort labelled
+"A to Z" that is not actually A to Z is worse than no sort. The star badge marks them
+instead. A manual drag switches the tab to `SortMode.Manual`, or the new order would revert
+on the next rebuild.
+
+**Motion** is centralised in `Motion`. Everything is ≤120 ms, well inside SPEC.md's 250 ms
+cap. `Motion.AnimationsEnabled` folds together the Windows "show animations" setting and
+high contrast, and when it is false animations are *skipped entirely* rather than shortened
+— a reduced-motion user wants no movement, not faster movement. It is read once at startup
+because it is queried on every pointer move, so changing the setting takes effect on the
+next launch.
+
+**High contrast** also suppresses the Mica backdrop: a translucent wallpaper-tinted surface
+defeats the point of a high contrast palette.
+
+**Keyboard.** Ctrl+F / Ctrl+K focus search; type anywhere to start searching; ↓/↑, Enter and
+Esc drive the results; Ctrl+Tab and Ctrl+Shift+Tab cycle tabs with wraparound; Ctrl+1–9 jump
+to a tab, where 9 means *last* rather than ninth, matching browsers; Enter launches and
+Delete removes from a custom tab.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -240,6 +272,16 @@ imaging dependency, not a UI framework, so it does not violate the "no UI in
 Launcher.Core" rule. `Image.FromHbitmap` is deliberately *not* used: it discards the alpha
 channel, which turns every icon's antialiased edge into a black fringe. The pixels are
 pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
+
+## Not built yet
+
+- **Section headers inside a tab** (SPEC.md "Views & layout"). User-created groups within a
+  tab need a section model on `LauncherTab`, grouped item sources, and UI to create, rename
+  and assign into them — comparable in size to the whole tab feature. Deferred rather than
+  half-built.
+- **Connected animation** from a tile into the properties dialog. `ContentDialog` builds its
+  content before it opens, which makes the destination element awkward to hand to
+  `ConnectedAnimation`. The other motion in SPEC.md is implemented.
 
 ## Known deviations
 
@@ -309,7 +351,7 @@ pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 | 3. Home tab | **Done** — virtualized grid, tiles, launching, context menu, InfoBar |
 | 4. Tabs | **Done** — create/rename/reorder/delete, drag-and-drop, Explorer drop |
 | 5. Search | **Done** — fzf-style matcher, ranked results, full keyboard flow |
-| 6. Polish | Not started |
+| 6. Polish | **Done** — view modes, sizing, sorting, motion, keyboard, accessibility |
 | 7. System integration | Not started |
 | 8. Hardening | Not started |
 

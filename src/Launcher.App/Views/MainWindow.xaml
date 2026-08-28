@@ -13,6 +13,20 @@
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Key="F" Invoked="OnFocusSearchRequested" Modifiers="Control" />
             <KeyboardAccelerator Key="K" Invoked="OnFocusSearchRequested" Modifiers="Control" />
+
+            <KeyboardAccelerator Key="Tab" Invoked="OnNextTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Tab" Invoked="OnPreviousTabRequested" Modifiers="Control,Shift" />
+
+            <!-- Ctrl+1..9 jump straight to a tab; 9 is the last tab, not the ninth. -->
+            <KeyboardAccelerator Key="Number1" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number2" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number3" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number4" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number5" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number6" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number7" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number8" Invoked="OnJumpToTabRequested" Modifiers="Control" />
+            <KeyboardAccelerator Key="Number9" Invoked="OnJumpToTabRequested" Modifiers="Control" />
         </Grid.KeyboardAccelerators>
 
         <Grid.RowDefinitions>
@@ -187,6 +201,55 @@
                                 Height="16"
                                 IsActive="{x:Bind Library.IsScanning, Mode=OneWay}"
                                 Visibility="{x:Bind Library.ScanningVisibility, Mode=OneWay}" />
+
+                            <Button
+                                AutomationProperties.Name="View and sort options"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ToolTipService.ToolTip="View and sort options">
+                                <FontIcon FontSize="14" Glyph="&#xE8A9;" />
+                                <Button.Flyout>
+                                    <Flyout>
+                                        <StackPanel Width="248" Spacing="8">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="View" />
+
+                                            <RadioButtons
+                                                AutomationProperties.Name="View mode"
+                                                SelectedIndex="{x:Bind Library.ViewModeIndex, Mode=TwoWay}">
+                                                <x:String>Large grid</x:String>
+                                                <x:String>Medium grid</x:String>
+                                                <x:String>Compact list</x:String>
+                                            </RadioButtons>
+
+                                            <TextBlock
+                                                Margin="0,8,0,0"
+                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                Text="Tile size" />
+
+                                            <Slider
+                                                AutomationProperties.Name="Tile size"
+                                                Maximum="160"
+                                                Minimum="75"
+                                                StepFrequency="5"
+                                                Value="{x:Bind Library.TileScalePercent, Mode=TwoWay}" />
+
+                                            <TextBlock
+                                                Margin="0,8,0,0"
+                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                Text="Sort by" />
+
+                                            <RadioButtons
+                                                AutomationProperties.Name="Sort order"
+                                                SelectedIndex="{x:Bind Library.SortModeIndex, Mode=TwoWay}">
+                                                <x:String>Manual (drag order)</x:String>
+                                                <x:String>Name (A to Z)</x:String>
+                                                <x:String>Most used</x:String>
+                                                <x:String>Recently used</x:String>
+                                            </RadioButtons>
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
 
                             <Button
                                 AutomationProperties.Name="Rescan installed apps"

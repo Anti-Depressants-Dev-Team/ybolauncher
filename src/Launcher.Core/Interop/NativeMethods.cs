@@ -239,6 +239,28 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DeleteObject(IntPtr handle);
 
+    /// <summary>SPI_GETHIGHCONTRAST.</summary>
+    internal const uint SpiGetHighContrast = 0x0042;
+
+    /// <summary>HCF_HIGHCONTRASTON.</summary>
+    internal const uint HighContrastOn = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct HighContrastInfo
+    {
+        public uint Size;
+        public uint Flags;
+        public IntPtr DefaultScheme;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(
+        uint action,
+        uint param,
+        ref HighContrastInfo data,
+        uint winIni);
+
     [DllImport("user32.dll")]
     internal static extern IntPtr GetDC(IntPtr hWnd);
 

@@ -57,6 +57,35 @@
                 </ComboBox>
             </tk:SettingsCard>
 
+            <tk:SettingsExpander
+                Description="Applies to tabs you create from now on. Each tab keeps its own view, which you can change from the view button next to the tab strip."
+                Header="Default view for new tabs">
+                <tk:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE8A9;" />
+                </tk:SettingsExpander.HeaderIcon>
+
+                <ComboBox
+                    MinWidth="160"
+                    AutomationProperties.Name="Default view mode"
+                    SelectedIndex="{x:Bind ViewModel.DefaultViewModeIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="Large grid" />
+                    <ComboBoxItem Content="Medium grid" />
+                    <ComboBoxItem Content="Compact list" />
+                </ComboBox>
+
+                <tk:SettingsExpander.Items>
+                    <tk:SettingsCard Header="Default tile size">
+                        <Slider
+                            Width="200"
+                            AutomationProperties.Name="Default tile size"
+                            Maximum="160"
+                            Minimum="75"
+                            StepFrequency="5"
+                            Value="{x:Bind ViewModel.DefaultTileScalePercent, Mode=TwoWay}" />
+                    </tk:SettingsCard>
+                </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
+
             <TextBlock
                 Margin="0,16,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"

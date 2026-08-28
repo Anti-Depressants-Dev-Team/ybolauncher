@@ -27,6 +27,18 @@ public sealed class LauncherTab
 
     public SortMode SortMode { get; set; } = SortMode.Manual;
 
+    public ViewMode ViewMode { get; set; } = ViewMode.MediumGrid;
+
+    /// <summary>
+    /// Multiplier on the tile size for this tab, driven by the size slider.
+    /// Clamped to <see cref="MinTileScale"/>..<see cref="MaxTileScale"/> when applied.
+    /// </summary>
+    public double TileScale { get; set; } = 1.0;
+
+    public const double MinTileScale = 0.75;
+
+    public const double MaxTileScale = 1.6;
+
     /// <summary>
     /// For a custom tab this is the membership list, in display order.
     /// <para>

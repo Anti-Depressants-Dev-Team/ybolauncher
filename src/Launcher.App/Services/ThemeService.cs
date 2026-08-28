@@ -1,3 +1,4 @@
+using Launcher.Core.Interop;
 using Launcher.Core.Models;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
@@ -52,7 +53,10 @@ public sealed class ThemeService : IThemeService
 
         // Mica needs Windows 11 build 22000+. On Windows 10 the call would leave the
         // window transparent, so fall back to the solid theme brush instead.
-        if (!MicaController.IsSupported())
+        //
+        // High contrast also opts out: a translucent, wallpaper-tinted backdrop defeats
+        // the whole point of a high contrast palette.
+        if (!MicaController.IsSupported() || SystemAccessibility.IsHighContrast())
         {
             _window.SystemBackdrop = null;
             return;
