@@ -3,7 +3,7 @@
 Working notes for this repo: architecture, conventions, and how to build and run.
 The product requirements live in [SPEC.md](SPEC.md); read that first in a new session.
 
-**Current state: Phase 1 (Skeleton) complete.** See "Phase status" at the bottom.
+**Current state: Phase 2 (Discovery) complete.** See "Phase status" at the bottom.
 
 ---
 
@@ -111,6 +111,38 @@ There are no migrations registered yet — everything is at v1. The mechanism is
 tests (`JsonStorageServiceTests`) including a v1→v2 rename, so the path is proven before
 it is needed.
 
+## Discovery
+
+Sources implement `IAppSource` and are run concurrently by `AppDiscoveryService`, which
+then filters, deduplicates, reconciles against the existing catalog, and saves `apps.json`.
+A source that throws is logged and skipped; it never costs the other sources their results.
+
+**Threading.** `IShellLink` and the shell image factory are apartment-threaded COM. The
+whole Start Menu walk therefore runs on one dedicated STA thread (`StaThread.RunAsync`).
+On a thread pool thread — which is MTA — every call would cross an apartment boundary
+through a proxy, which across several hundred shortcuts is the difference between a fast
+scan and a visibly slow one. The package catalog source has no such constraint and runs on
+the thread pool, so the two overlap.
+
+**Identity and merging.** `AppIdentity` computes a *merge key* answering "are these the
+same app?", and the entry id is just its hash. Because the id is derived rather than
+generated, a rescan re-derives it and user edits (rename, custom icon, launch counts) stay
+attached — `AppEntry.UpdateFromScan` copies only discovery-owned fields. Key preference is
+AUMID → URI → target path (+arguments) → name. Arguments are part of the key on purpose:
+two shortcuts to the same binary with different switches are genuinely different apps.
+
+**Filtering.** `JunkFilter` matches on whole words, not substrings — "Visual Studio
+Installer" is a real app and "Uninstall Foo" is not. Rejected entries are *marked, not
+dropped*, so the show-filtered-entries toggle reveals them with no rescan. Packaged apps
+are never filtered: the catalog has no clutter in it, and names like "Get Help" would
+otherwise trip the word list.
+
+**Icons.** Cached as PNGs keyed on (source path, last-write time, size), so an app update
+naturally invalidates its icon. Executables and shortcuts go through
+`IShellItemImageFactory`; packaged apps use `AppListEntry.DisplayInfo.GetLogo`, which is
+already a PNG and only needs copying. Icons are extracted from the `.lnk` rather than its
+target so the shortcut's own icon location and index are honoured.
+
 ## Dependency choices
 
 **Windows App SDK is pinned to the 1.8 line, not 2.x**, even though 2.4.0 is current.
@@ -123,6 +155,12 @@ WinUIEx 2.9.3 depends on `Microsoft.WindowsAppSDK.WinUI` 1.8.x and
 
 For Phase 7, note that **H.NotifyIcon.WinUI 2.4.1 is .NET 10 only**; 2.3.2 is the newest
 version with a `net9.0-windows` target.
+
+**System.Drawing.Common** is used only to encode extracted icons as PNG. It is a GDI+
+imaging dependency, not a UI framework, so it does not violate the "no UI in
+Launcher.Core" rule. `Image.FromHbitmap` is deliberately *not* used: it discards the alpha
+channel, which turns every icon's antialiased edge into a black fringe. The pixels are
+pulled out with `GetDIBits` into a top-down 32bpp buffer instead.
 
 ## Known deviations
 
@@ -147,13 +185,25 @@ version with a `net9.0-windows` target.
   geometry change is missed and a first run never writes `settings.json`.
 - Window geometry is saved on a 750 ms debounce during the session, not on `Closed` —
   a fire-and-forget async save on close races process shutdown and loses the write.
+- **An AUMID on a shortcut does not mean the app is packaged.** Plenty of ordinary desktop
+  apps stamp `PKEY_AppUserModel_ID` on their Start Menu shortcuts purely so the taskbar
+  groups their windows: Firefox uses `308046B0AF4A39CB`, Edge `MSEdge`, Visual Studio
+  `VisualStudio.257105d1`. Treating those as packaged discards the shortcut's target path
+  and leaves an entry nothing can launch. `PackagedAppId.IsPackagedAumid` requires the real
+  `Name_PublisherId!AppId` shape.
+- `IShellLink::GetPath` returns nothing for shortcuts to a shell folder — File Explorer,
+  Control Panel, Run. They are real apps, so the target falls back to the `.lnk` itself;
+  ShellExecute on a shortcut resolves the ID list without any extra interop.
+- `IShellLink::Resolve` is never called. Its "find the moved target" search can hit the
+  network or trigger an MSI repair, costing seconds per shortcut, and a shortcut whose
+  target is gone is junk anyway.
 
 ## Phase status
 
 | Phase | State |
 | --- | --- |
 | 1. Skeleton | **Done** — window, custom titlebar, Mica, theme switching, DI, nav shell |
-| 2. Discovery | Not started |
+| 2. Discovery | **Done** — Start Menu + package catalog, dedupe, junk filter, icon cache |
 | 3. Home tab | Not started |
 | 4. Tabs | Not started |
 | 5. Search | Not started |
@@ -161,15 +211,18 @@ version with a `net9.0-windows` target.
 | 7. System integration | Not started |
 | 8. Hardening | Not started |
 
-### Registered services (Phase 1)
+### Registered services
 
-Only services with a real implementation are in the container. `IAppDiscoveryService`,
-`IIconService`, `ILaunchService` and `ISearchService` are **deliberately absent** rather
-than bound to do-nothing placeholders; they arrive with Phases 2, 2, 3 and 5.
+Only services with a real implementation are in the container. `ILaunchService` and
+`ISearchService` are **deliberately absent** rather than bound to do-nothing placeholders;
+they arrive with Phases 3 and 5.
 
 | Interface | Implementation |
 | --- | --- |
 | `IStorageService` | `JsonStorageService` |
 | `ISettingsService` | `SettingsService` |
+| `IIconService` | `IconService` |
+| `IAppDiscoveryService` | `AppDiscoveryService` |
+| `IAppSource` (multiple) | `StartMenuAppSource`, `PackagedAppSource` |
 | `IThemeService` | `ThemeService` (app layer — touches `Microsoft.UI.Xaml`) |
-| `StoragePaths` | concrete singleton |
+| `StoragePaths`, `ShellLinkResolver`, `JunkFilter` | concrete singletons |

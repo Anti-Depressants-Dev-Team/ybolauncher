@@ -4,6 +4,8 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Services;
+using Launcher.Core.Discovery;
+using Launcher.Core.Icons;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
 using Launcher.Core.Storage;
@@ -19,6 +21,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ISettingsService _settings;
     private readonly IThemeService _theme;
     private readonly StoragePaths _paths;
+    private readonly IAppDiscoveryService _discovery;
+    private readonly IIconService _icons;
 
     [ObservableProperty]
     private int _selectedThemeIndex;
@@ -26,20 +30,43 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedBackdropIndex;
 
+    [ObservableProperty]
+    private bool _scanStartMenu;
+
+    [ObservableProperty]
+    private bool _scanPackagedApps;
+
+    [ObservableProperty]
+    private bool _showFilteredEntries;
+
+    [ObservableProperty]
+    private string _iconCacheStatus = string.Empty;
+
     /// <summary>Suppresses write-back while the view model seeds itself from stored settings.</summary>
     private readonly bool _isInitializing;
 
-    public SettingsViewModel(ISettingsService settings, IThemeService theme, StoragePaths paths)
+    public SettingsViewModel(
+        ISettingsService settings,
+        IThemeService theme,
+        StoragePaths paths,
+        IAppDiscoveryService discovery,
+        IIconService icons)
     {
         _settings = settings;
         _theme = theme;
         _paths = paths;
+        _discovery = discovery;
+        _icons = icons;
 
         // Seed the backing fields directly so the change handlers do not write back the
         // values we just read.
         _isInitializing = true;
-        _selectedThemeIndex = (int)_settings.Current.Theme;
-        _selectedBackdropIndex = (int)_settings.Current.Backdrop;
+        AppSettings current = _settings.Current;
+        _selectedThemeIndex = (int)current.Theme;
+        _selectedBackdropIndex = (int)current.Backdrop;
+        _scanStartMenu = current.ScanStartMenu;
+        _scanPackagedApps = current.ScanPackagedApps;
+        _showFilteredEntries = current.ShowFilteredEntries;
         _isInitializing = false;
 
         VersionDescription = BuildVersionDescription();
@@ -53,6 +80,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         : "State is stored in your local application data folder.";
 
     public string VersionDescription { get; }
+
+    public bool CanRescan => !_discovery.IsScanning;
 
     private static string BuildVersionDescription()
     {
@@ -90,6 +119,73 @@ public sealed partial class SettingsViewModel : ObservableObject
         var backdrop = (BackdropKind)value;
         _theme.ApplyBackdrop(backdrop);
         _ = _settings.UpdateAsync(s => s.Backdrop = backdrop);
+    }
+
+    partial void OnScanStartMenuChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.ScanStartMenu = value);
+        }
+    }
+
+    partial void OnScanPackagedAppsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.ScanPackagedApps = value);
+        }
+    }
+
+    partial void OnShowFilteredEntriesChanged(bool value)
+    {
+        // Filtered entries stay in the catalog, so revealing them needs no rescan -
+        // the settings-changed event alone rebuilds the list.
+        if (!_isInitializing)
+        {
+            _ = _settings.UpdateAsync(s => s.ShowFilteredEntries = value);
+        }
+    }
+
+    /// <summary>Re-runs discovery. User edits survive because entries are matched by id.</summary>
+    [RelayCommand]
+    private async Task RescanAsync()
+    {
+        if (_discovery.IsScanning)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanRescan));
+
+        try
+        {
+            await _discovery.ScanAsync();
+            IconCacheStatus = "Rescan complete.";
+        }
+        catch (Exception ex)
+        {
+            IconCacheStatus = "Rescan failed: " + ex.Message;
+        }
+        finally
+        {
+            OnPropertyChanged(nameof(CanRescan));
+        }
+    }
+
+    /// <summary>
+    /// Deletes every cached PNG. The next scan re-extracts them, which is the fix when an
+    /// app updates its icon but keeps the same executable timestamp.
+    /// </summary>
+    [RelayCommand]
+    private async Task ClearIconCacheAsync()
+    {
+        int removed = await _icons.ClearAsync();
+
+        IconCacheStatus = string.Format(
+            CultureInfo.CurrentCulture,
+            "Removed {0} cached icon(s). Rescan to rebuild them.",
+            removed);
     }
 
     /// <summary>Opens the state folder in File Explorer.</summary>

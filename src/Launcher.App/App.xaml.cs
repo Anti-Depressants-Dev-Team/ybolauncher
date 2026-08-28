@@ -42,6 +42,11 @@ public partial class App : Application
 
         _window = Services.GetRequiredService<MainWindow>();
         _window.Activate();
+
+        // Discovery starts after the window is up and runs in the background, so the
+        // first-run scan never blocks the shell from appearing.
+        var home = Services.GetRequiredService<ViewModels.HomeViewModel>();
+        await home.InitializeAsync();
     }
 
     private static ServiceProvider ConfigureServices()
@@ -55,6 +60,10 @@ public partial class App : Application
         services.AddSingleton<MainWindow>();
         services.AddTransient<ShellViewModel>();
         services.AddTransient<SettingsViewModel>();
+
+        // Singleton so the discovered catalog survives navigating away from Home and back.
+        // Constructed on the UI thread because it captures the DispatcherQueue.
+        services.AddSingleton<HomeViewModel>();
 
         return services.BuildServiceProvider();
     }

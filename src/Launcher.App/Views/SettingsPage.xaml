@@ -60,6 +60,63 @@
             <TextBlock
                 Margin="0,16,0,4"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Discovery" />
+
+            <tk:SettingsCard
+                Description="Scan the machine and user Start Menu folders for shortcuts."
+                Header="Start Menu shortcuts">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8FD;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Scan Start Menu shortcuts"
+                    IsOn="{x:Bind ViewModel.ScanStartMenu, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="Scan the Store and MSIX package catalog."
+                Header="Installed and Store apps">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7B8;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Scan installed and Store apps"
+                    IsOn="{x:Bind ViewModel.ScanPackagedApps, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="Reveal uninstallers, documentation links and broken shortcuts. No rescan needed - they are always kept in the catalog."
+                Header="Show filtered entries">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE71C;" />
+                </tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch
+                    AutomationProperties.Name="Show filtered entries"
+                    IsOn="{x:Bind ViewModel.ShowFilteredEntries, Mode=TwoWay}" />
+            </tk:SettingsCard>
+
+            <tk:SettingsCard
+                Description="{x:Bind ViewModel.IconCacheStatus, Mode=OneWay}"
+                Header="Rescan and icon cache">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE72C;" />
+                </tk:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button
+                        AutomationProperties.Name="Clear the icon cache"
+                        Command="{x:Bind ViewModel.ClearIconCacheCommand}"
+                        Content="Clear icon cache" />
+                    <Button
+                        AutomationProperties.Name="Rescan installed apps"
+                        Command="{x:Bind ViewModel.RescanCommand}"
+                        Content="Rescan"
+                        Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </tk:SettingsCard>
+
+            <TextBlock
+                Margin="0,16,0,4"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Storage" />
 
             <tk:SettingsExpander

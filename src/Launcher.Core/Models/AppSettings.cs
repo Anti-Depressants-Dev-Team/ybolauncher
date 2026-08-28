@@ -26,6 +26,18 @@ public sealed class AppSettings : IVersionedDocument
     /// <summary>Id of the tab selected when the app was last closed. Null selects Home.</summary>
     public string? LastActiveTabId { get; set; }
 
+    /// <summary>Scan the machine and user Start Menu folders.</summary>
+    public bool ScanStartMenu { get; set; } = true;
+
+    /// <summary>Scan the Store / MSIX package catalog.</summary>
+    public bool ScanPackagedApps { get; set; } = true;
+
+    /// <summary>
+    /// Show entries the junk filter rejected - uninstallers, documentation links, broken
+    /// shortcuts. They stay in the catalog either way, so this needs no rescan.
+    /// </summary>
+    public bool ShowFilteredEntries { get; set; }
+
     /// <summary>Creates an independent copy, used to diff or roll back pending edits.</summary>
     public AppSettings Clone() => new()
     {
@@ -33,6 +45,9 @@ public sealed class AppSettings : IVersionedDocument
         Theme = Theme,
         Backdrop = Backdrop,
         LastActiveTabId = LastActiveTabId,
+        ScanStartMenu = ScanStartMenu,
+        ScanPackagedApps = ScanPackagedApps,
+        ShowFilteredEntries = ShowFilteredEntries,
         Window = Window.Clone(),
     };
 }

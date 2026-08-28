@@ -32,3 +32,41 @@ public enum SortMode
     MostUsed = 2,
     RecentlyUsed = 3,
 }
+
+/// <summary>Where a discovered entry came from.</summary>
+public enum AppSource
+{
+    StartMenu = 0,
+    Packaged = 1,
+    Steam = 2,
+    Epic = 3,
+    XboxGamePass = 4,
+
+    /// <summary>Dragged in from Explorer by the user.</summary>
+    UserAdded = 5,
+}
+
+/// <summary>How an entry is started.</summary>
+public enum LaunchKind
+{
+    /// <summary>ShellExecute on a file system path.</summary>
+    Executable = 0,
+
+    /// <summary>Resolved through the package catalog and started with AppListEntry.LaunchAsync.</summary>
+    PackagedApp = 1,
+
+    /// <summary>A protocol URI such as steam://rungameid/440.</summary>
+    Uri = 2,
+}
+
+/// <summary>Why the junk filter rejected an entry. <see cref="None"/> means it was kept.</summary>
+public enum FilterReason
+{
+    None = 0,
+    Uninstaller = 1,
+    Documentation = 2,
+    WebLink = 3,
+    BrokenTarget = 4,
+    NoLaunchTarget = 5,
+    SystemComponent = 6,
+}
